@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario Gorditas - Grupo LEM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--or:#e07b00;--orl:#f9a825;--bg:#fff8f0;--card:#fff;--bdr:#f0d9b5;--txt:#2d1a00;--mut:#888;--red:#c0392b;--grn:#27ae60;--adm:#4a148c}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:14px}
+nav{background:var(--or);color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px #0003}
+nav h1{font-size:.98rem;font-weight:700}
+.nav-right{display:flex;align-items:center;gap:8px}
+.role-badge{background:#fff3;border-radius:20px;padding:3px 10px;font-size:.76rem;white-space:nowrap}
+.logout-btn{background:#fff2;border:1px solid #fff5;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.78rem}
+.page{display:none;padding:14px;max-width:100%;margin:0 auto}
+.page.active{display:block}
+.login-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:88vh}
+.login-card{background:var(--card);border-radius:16px;padding:30px 26px;box-shadow:0 4px 24px #e07b0022;width:100%;max-width:360px;text-align:center}
+.login-card .logo{font-size:2.6rem;margin-bottom:6px}
+.login-card h2{color:var(--or);font-size:1.2rem;margin-bottom:4px}
+.login-card p{color:var(--mut);font-size:.85rem;margin-bottom:20px}
+.role-btns{display:flex;flex-direction:column;gap:11px}
+.role-btn{padding:13px;border-radius:10px;border:2px solid var(--bdr);background:#fff;cursor:pointer;font-size:.95rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:10px;justify-content:center}
+.role-btn:hover{border-color:var(--or);background:var(--bg)}
+.role-btn.adm{border-color:var(--adm);color:var(--adm)}
+.role-btn.ger{border-color:var(--or);color:var(--or)}
+.modal-overlay{display:none;position:fixed;inset:0;background:#0007;z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:14px;padding:26px;width:92%;max-width:340px;text-align:center}
+.modal h3{margin-bottom:6px;color:var(--or);font-size:1.05rem}
+.modal p{color:var(--mut);font-size:.83rem;margin-bottom:12px}
+.modal select,.modal input[type=password]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--bdr);font-size:.93rem;margin-bottom:11px;background:#fff}
+.modal input[type=password]{text-align:center;letter-spacing:5px}
+.pin-error{color:var(--red);font-size:.81rem;margin-bottom:9px;display:none}
+.btn-row{display:flex;gap:9px}
+.btn{padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.88rem;font-weight:600;transition:all .2s}
+.btn-or{background:var(--or);color:#fff}.btn-or:hover{background:#c96e00}
+.btn-sec{background:#eee;color:#444}.btn-sec:hover{background:#ddd}
+.btn-grn{background:var(--grn);color:#fff}.btn-grn:hover{background:#1e8449}
+.btn-adm{background:var(--adm);color:#fff}.btn-adm:hover{background:#380a68}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.tabs-bar{background:var(--bg);padding:9px 14px 0;position:sticky;top:45px;z-index:90}
+.tabs{display:flex;gap:5px;flex-wrap:wrap}
+.tab{padding:7px 13px;border-radius:8px;border:none;cursor:pointer;font-size:.84rem;background:#eee;color:#555;font-weight:600;transition:all .2s}
+.tab.active{background:var(--or);color:#fff}
+.tab.adm-tab.active{background:var(--adm)}
+.sec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:7px}
+.sec-header h2{font-size:1rem;font-weight:700}
+.badge{border-radius:8px;padding:3px 11px;font-size:.78rem;font-weight:600}
+.badge-or{background:var(--or);color:#fff}
+.badge-date{background:var(--orl);color:#5a3800}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);background:var(--card);margin-bottom:13px}
+table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:700px}
+thead th{background:var(--or);color:#fff;padding:8px 6px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:5}
+thead th:first-child{text-align:left;min-width:150px}
+td{padding:6px 5px;border-bottom:1px solid var(--bdr);vertical-align:middle;text-align:center}
+td:first-child{text-align:left;font-weight:500;white-space:nowrap}
+tr:nth-child(even){background:#fff8f0}
+tr.total-row td{background:var(--orl);font-weight:700}
+.c-yellow{background:#fffde7 !important}
+.c-green{background:#f1f8e9 !important}
+.c-blue{background:#e3f2fd !important}
+.c-calc{background:#fce4ec !important;font-weight:600;color:#880e4f}
+input.qty{width:70px;padding:5px 3px;border-radius:5px;border:1px solid var(--bdr);text-align:center;font-size:.82rem;background:#fff}
+input.qty:focus{outline:2px solid var(--or);border-color:transparent}
+input.qty.adm-inp{border-color:#7b1fa2;background:#f3e5f5}
+input.qty.adm-inp:focus{outline:2px solid var(--adm)}
+.summary-section{margin-bottom:14px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-size:.78rem}
+.leg-item{display:flex;align-items:center;gap:5px}
+.leg-dot{width:14px;height:14px;border-radius:3px;border:1px solid #ccc}
+.hist-controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.hist-controls select,.hist-controls input[type=month]{padding:7px 9px;border-radius:8px;border:1px solid var(--bdr);font-size:.85rem;background:#fff}
+.hist-entry{background:var(--card);border-radius:10px;border:1px solid var(--bdr);margin-bottom:11px;overflow:hidden}
+.hist-hdr{background:var(--orl);padding:9px 13px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px}
+.hist-hdr h3{font-size:.9rem;font-weight:700;color:#5a3800}
+.empty-state{text-align:center;color:var(--mut);padding:34px 20px;font-size:.9rem}
+.action-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
+.adm-header{background:linear-gradient(135deg,var(--adm),#7b1fa2);color:#fff;border-radius:12px;padding:18px;margin-bottom:14px}
+.adm-header h2{font-size:1.1rem;margin-bottom:3px}
+.adm-header p{font-size:.82rem;opacity:.85}
+.suc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:11px;margin-bottom:14px}
+.suc-card{background:var(--card);border-radius:10px;border:1px solid var(--bdr);padding:13px;cursor:pointer;transition:all .2s}
+.suc-card:hover{border-color:var(--or);box-shadow:0 2px 12px #e07b0022}
+.suc-card h4{font-size:.9rem;font-weight:700;margin-bottom:5px}
+.suc-card .sc-stat{font-size:.76rem;color:var(--mut)}
+.suc-card .sc-total{font-size:1.1rem;font-weight:700;color:var(--or);margin-top:4px}
+.cfg-box{background:var(--card);border-radius:12px;border:1px solid var(--bdr);padding:16px;margin-bottom:16px}
+.cfg-box h3{font-size:.95rem;font-weight:700;margin-bottom:12px;color:var(--adm)}
+.item-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bdr);flex-wrap:wrap;gap:6px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#2d1a00;color:#fff;padding:11px 20px;border-radius:10px;font-size:.86rem;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+@media(max-width:480px){input.qty{width:58px;font-size:.78rem}thead th,td{padding:5px 3px;font-size:.76rem}}
+</style>
+</head>
+<body>
+
+<nav id="nav" style="display:none">
+  <h1>🫓 Gorditas — Grupo LEM</h1>
+  <div class="nav-right">
+    <span class="role-badge" id="navBadge"></span>
+    <button class="logout-btn" onclick="logout()">Salir</button>
+  </div>
+</nav>
+<div id="tabsBarEl" style="display:none" class="tabs-bar"><div class="tabs" id="tabsEl"></div></div>
+
+<!-- LOGIN -->
+<div class="page active" id="pageLogin">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="logo">🫓</div>
+      <h2>Grupo LEM — Gorditas</h2>
+      <p>Sistema de Inventario Diario</p>
+      <div class="role-btns">
+        <button class="role-btn adm" onclick="openModal('modalAdm')">👑 Administrador</button>
+        <button class="role-btn ger" onclick="openModal('modalGer')">👔 Gerente de Sucursal</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ADMIN -->
+<div class="modal-overlay" id="modalAdm">
+  <div class="modal">
+    <h3>👑 Administrador</h3>
+    <p>Ingresa el PIN de administrador</p>
+    <input type="password" id="admPin" maxlength="8" placeholder="••••••" onkeydown="if(event.key==='Enter')checkAdm()">
+    <p class="pin-error" id="admPinErr">PIN incorrecto</p>
+    <div class="btn-row">
+      <button class="btn btn-sec" style="flex:1" onclick="closeModal('modalAdm')">Cancelar</button>
+      <button class="btn btn-adm" style="flex:1" onclick="checkAdm()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GERENTE -->
+<div class="modal-overlay" id="modalGer">
+  <div class="modal">
+    <h3>👔 Gerente</h3>
+    <p>Selecciona tu sucursal e ingresa tu PIN</p>
+    <select id="gerSuc"><option value="">-- Selecciona sucursal --</option></select>
+    <input type="password" id="gerPin" maxlength="8" placeholder="Tu PIN" onkeydown="if(event.key==='Enter')checkGer()">
+    <p class="pin-error" id="gerPinErr">PIN incorrecto o sucursal no seleccionada</p>
+    <div class="btn-row">
+      <button class="btn btn-sec" style="flex:1" onclick="closeModal('modalGer')">Cancelar</button>
+      <button class="btn btn-or" style="flex:1" onclick="checkGer()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTER PAGE (gerente) -->
+<div class="page" id="pageRegister">
+  <div class="sec-header">
+    <h2>Registro del Día</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span class="badge badge-or" id="regSucBadge"></span>
+      <span class="badge badge-date" id="regDate"></span>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="leg-item"><div class="leg-dot" style="background:#fffde7"></div> Gerente captura</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#e3f2fd"></div> Admin captura</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#fce4ec"></div> Calculado</div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>Producto</th><th>Unidad</th>
+      <th style="background:#827717;color:#fff">Saldo Inicial</th>
+      <th style="background:#0d47a1;color:#fff">Entrada</th>
+      <th style="background:#f57f17;color:#fff">Baño María</th>
+      <th style="background:#f57f17;color:#fff">Refrigerador</th>
+      <th style="background:#f57f17;color:#fff">Congelador</th>
+      <th style="background:#880e4f;color:#fff">Saldo Final</th>
+      <th style="background:#880e4f;color:#fff">Consumo Real</th>
+      <th style="background:#1b5e20;color:#fff">Dritzline</th>
+      <th style="background:#880e4f;color:#fff">Df. Teórica</th>
+      <th style="background:#880e4f;color:#fff">Diferencia (g)</th>
+    </tr></thead>
+    <tbody id="regBody"></tbody>
+    <tfoot id="regFoot"></tfoot>
+  </table></div>
+  <div class="summary-section">
+    <h3 style="font-size:.88rem;color:var(--mut);font-weight:600;margin-bottom:9px">Eficiencia del Día</h3>
+    <div id="effGrid"></div>
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap">
+    <button class="btn btn-or" id="saveDayBtn" onclick="saveDay()">💾 Guardar Registro</button>
+    <button class="btn btn-sec" onclick="clearGerente()">🔄 Limpiar</button>
+
+  </div>
+</div>
+
+<!-- HISTORY (gerente) -->
+<div class="page" id="pageHistory">
+  <div class="sec-header"><h2>Historial — <span id="histSucTitle"></span></h2></div>
+  <div class="action-bar"><button class="btn btn-grn" onclick="exportExcelSuc()">📥 Exportar Excel</button></div>
+  <div class="hist-controls">
+    <input type="month" id="filterMonth" onchange="renderHistory()">
+    <button class="btn btn-sec" onclick="document.getElementById('filterMonth').value='';renderHistory()">Ver todos</button>
+  </div>
+  <div id="histList"></div>
+</div>
+
+<!-- EFICIENCIAS (gerente) -->
+<div class="page" id="pageEficiencia">
+  <div class="sec-header">
+    <h2>📈 Eficiencias</h2>
+    <span class="badge badge-or" id="efSucBadge"></span>
+  </div>
+  <div class="hist-controls">
+    <input type="month" id="efMonth" onchange="renderEficiencia()">
+    <button class="btn btn-sec" onclick="document.getElementById('efMonth').value='';renderEficiencia()">Ver todos</button>
+  </div>
+  <div id="efContent"></div>
+</div>
+
+<!-- CAPTURAR (admin) -->
+<div class="page" id="pageCapturar">
+  <div class="sec-header">
+    <h2>Captura Administrador</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span class="badge" style="background:var(--adm);color:#fff" id="admRegSucBadge"></span>
+      <span class="badge badge-date" id="admRegDate"></span>
+    </div>
+  </div>
+  <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <select id="admSucSelect" style="padding:8px 12px;border-radius:8px;border:1px solid var(--bdr);font-size:.9rem;background:#fff;max-width:260px">
+      <option value="">-- Selecciona sucursal --</option>
+    </select>
+    <input type="date" id="admDatePicker" style="padding:8px 12px;border-radius:8px;border:1px solid var(--bdr);font-size:.9rem;background:#fff">
+    <button class="btn btn-adm" onclick="loadAdmTable()">📂 Cargar</button>
+  </div>
+  <div style="background:#f3e5f5;border-radius:10px;padding:12px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+    <span style="font-size:.85rem;font-weight:600;color:var(--adm)">📋 Plantillas:</span>
+    <button class="btn btn-sec" style="font-size:.78rem;padding:6px 10px" onclick="downloadPlantilla('si')">⬇️ Saldo Inicial</button>
+    <button class="btn btn-sec" style="font-size:.78rem;padding:6px 10px" onclick="downloadPlantilla('ent')">⬇️ Entrada</button>
+    <button class="btn btn-sec" style="font-size:.78rem;padding:6px 10px" onclick="downloadPlantilla('dritz')">⬇️ Dritzline</button>
+    <label class="btn btn-adm" style="font-size:.78rem;padding:6px 10px;cursor:pointer">📥 Imp. Saldo Inicial<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this,'si')"></label>
+    <label class="btn btn-adm" style="font-size:.78rem;padding:6px 10px;cursor:pointer">📥 Imp. Entrada<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this,'ent')"></label>
+    <label class="btn btn-adm" style="font-size:.78rem;padding:6px 10px;cursor:pointer">📥 Imp. Dritzline<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this,'dritz')"></label>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>Producto</th><th>Unidad</th>
+      <th style="background:#0d47a1;color:#fff">Saldo Inicial</th>
+      <th style="background:#f57f17;color:#fff">Entrada</th>
+      <th style="background:#1b5e20;color:#fff">Consumo Dritzline</th>
+    </tr></thead>
+    <tbody id="admBody"></tbody>
+  </table></div>
+  <button class="btn btn-adm" onclick="saveAdmData()">💾 Guardar</button>
+</div>
+
+<!-- EFICIENCIAS (admin) -->
+<div class="page" id="pageEfAdmin">
+  <div class="sec-header"><h2>📈 Eficiencias</h2></div>
+  <div class="hist-controls">
+    <select id="efAdmSuc" style="padding:7px 9px;border-radius:8px;border:1px solid var(--bdr);font-size:.85rem;background:#fff">
+      <option value="">-- Selecciona sucursal --</option>
+    </select>
+    <input type="month" id="efAdmMonth">
+    <button class="btn btn-sec" onclick="renderEfAdmin()">Ver todos</button>
+  </div>
+  <div id="efAdmContent"></div>
+</div>
+
+<!-- ADMINISTRACION -->
+<div class="page" id="pageAdministracion">
+  <div class="adm-header"><h2>⚙️ Administración</h2><p>Gestión de sucursales, productos y contraseñas</p></div>
+  <div class="cfg-box">
+    <h3>🔑 Cambiar PINs</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;margin-bottom:10px">
+      <select id="pinChangeSuc" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem;background:#fff">
+        <option value="__admin__">👑 Administrador</option>
+      </select>
+      <input type="password" id="pinChangeVal" maxlength="8" placeholder="Nuevo PIN" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
+      <button class="btn btn-adm" onclick="changePin()">Guardar</button>
+    </div>
+    <p id="pinChangeMsg" style="font-size:.8rem;display:none"></p>
+  </div>
+  <div class="cfg-box">
+    <h3>🏪 Nueva Sucursal</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center">
+      <input type="text" id="newSucName" placeholder="Nombre" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
+      <input type="text" id="newSucPin" maxlength="8" placeholder="PIN" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
+      <button class="btn btn-or" onclick="addSucursal()">Agregar</button>
+    </div>
+    <p id="newSucMsg" style="font-size:.8rem;margin-top:8px;display:none"></p>
+  </div>
+  <div class="cfg-box">
+    <h3>🍽️ Nuevo Producto</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">
+      <input type="text" id="newProdName" placeholder="Nombre del producto" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
+      <select id="newProdCat" onchange="toggleGpg()" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem;background:#fff">
+        <option value="guiso">🥩 Guiso ($/Kg)</option>
+        <option value="postre">🍞 Postre ($/Unidad)</option>
+        <option value="bebida">🥤 Bebida ($/Unidad)</option>
+      </select>
+      <input type="number" id="newProdCosto" min="0" step="0.01" placeholder="Costo" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
+      <input type="number" id="newProdGpg" min="1" step="1" placeholder="Gramos x Gordita" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
+    </div>
+    <button class="btn btn-or" onclick="addProduct()">➕ Agregar Producto</button>
+    <p id="newProdMsg" style="font-size:.8rem;margin-top:8px;display:none"></p>
+  </div>
+  <div class="cfg-box">
+    <h3>📋 Sucursales Activas</h3><div id="sucursalesList"></div>
+    <h3 style="margin-top:16px;margin-bottom:10px;color:var(--mut)">📦 Archivadas</h3><div id="sucursalesArchivadas"></div>
+  </div>
+  <div class="cfg-box">
+    <h3>📋 Productos Activos</h3><div id="productosList"></div>
+    <h3 style="margin-top:16px;margin-bottom:10px;color:var(--mut)">📦 Archivados</h3><div id="productosArchivados"></div>
+  </div>
+</div>
+
+<!-- PANEL ADMIN -->
+<div class="page" id="pageAdmin">
+  <div class="adm-header"><h2>👑 Panel Administrador</h2><p>Vista consolidada — Grupo LEM</p></div>
+  <div class="action-bar"><button class="btn btn-adm" onclick="exportExcelGlobal()">📥 Excel Global</button></div>
+  <div class="hist-controls">
+    <input type="month" id="admFilterMonth" onchange="renderAdmin()">
+    <select id="admFilterSuc" onchange="renderAdmin()"><option value="">Todas las sucursales</option></select>
+    <button class="btn btn-sec" onclick="document.getElementById('admFilterMonth').value='';document.getElementById('admFilterSuc').value='';renderAdmin()">Ver todo</button>
+  </div>
+  <div id="adminContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+var DP=[
+  {name:"Asado de Puerco",unit:"g",cat:"guiso",gpg:65,costo:112.75},
+  {name:"Barbacoa",unit:"g",cat:"guiso",gpg:53,costo:250.54},
+  {name:"Carnita en Mole",unit:"g",cat:"guiso",gpg:57,costo:108.41},
+  {name:"Carnita en SV",unit:"g",cat:"guiso",gpg:74,costo:118.25},
+  {name:"Chicharron Cruji",unit:"g",cat:"guiso",gpg:29,costo:288.86},
+  {name:"Chicharron en SV",unit:"g",cat:"guiso",gpg:66,costo:126.96},
+  {name:"Chicharron Prensado en salsa roja",unit:"g",cat:"guiso",gpg:58,costo:127.12},
+  {name:"Chicharron Salsa Morita",unit:"g",cat:"guiso",gpg:62,costo:118.56},
+  {name:"Chorizo",unit:"g",cat:"guiso",gpg:60,costo:107.59},
+  {name:"Cochinita Pibil",unit:"g",cat:"guiso",gpg:60,costo:106.27},
+  {name:"Deshebrada",unit:"g",cat:"guiso",gpg:60,costo:135.22},
+  {name:"Frijolitos",unit:"g",cat:"guiso",gpg:42,costo:50.59},
+  {name:"Huevito en SV",unit:"g",cat:"guiso",gpg:65,costo:74.22},
+  {name:"Jamon",unit:"g",cat:"guiso",gpg:31,costo:113.97},
+  {name:"Nopalitos",unit:"g",cat:"guiso",gpg:60,costo:71.82},
+  {name:"Papita en SR",unit:"g",cat:"guiso",gpg:61,costo:69.39},
+  {name:"Pastor",unit:"g",cat:"guiso",gpg:44,costo:120.89},
+  {name:"Picadillo",unit:"g",cat:"guiso",gpg:63,costo:124.57},
+  {name:"QAsadero",unit:"g",cat:"guiso",gpg:40,costo:113.33},
+  {name:"Qfresco",unit:"g",cat:"guiso",gpg:43,costo:179.70},
+  {name:"Gordita Dulce",unit:"PZA",cat:"postre",gpg:1,costo:8.60},
+  {name:"Gordita ChocoTota",unit:"PZA",cat:"postre",gpg:1,costo:10.77},
+  {name:"Epura 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
+  {name:"Lipton 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
+  {name:"Lipton Diet 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
+  {name:"7Up",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {name:"Manzanita Sol 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {name:"Mirinda 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {name:"Pepsi Black 355ml",unit:"Botella",cat:"bebida",gpg:1,costo:7.35},
+  {name:"Pepsi Light 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {name:"Pepsi 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24}
+];
+var DS=[
+  {name:"Bosques",pin:"123",archived:false},{name:"Anthony Quinn",pin:"123",archived:false},
+  {name:"Mi Plaza",pin:"123",archived:false},{name:"Fuentes Mares",pin:"123",archived:false},
+  {name:"Vallarta",pin:"123",archived:false},{name:"Sacramento",pin:"123",archived:false},
+  {name:"Fashion Mall",pin:"123",archived:false},{name:"Sendero",pin:"123",archived:false},
+  {name:"Juventud",pin:"123",archived:false},{name:"Valles Vivar",pin:"123",archived:false},
+  {name:"OXXO Majalca",pin:"123",archived:false}
+];
+var PRODUCTS=[];
+var LOCS=["bano","refri","conge"];
+var LOC_LABELS=["Baño María","Refrigerador","Congelador"];
+var role=null,suc=null,admSuc=null,admDate=null;
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+function getConfig(){
+  var s=localStorage.getItem('glem_config');
+  if(!s){
+    var d={adminPin:"201414",sucursales:DS,products:DP.map(function(p){return Object.assign({},p,{archived:false})})};
+    localStorage.setItem('glem_config',JSON.stringify(d));return d;
+  }
+  var c=JSON.parse(s);
+  if(!c.products){c.products=DP.map(function(p){return Object.assign({},p,{archived:false})});localStorage.setItem('glem_config',JSON.stringify(c))}
+  return c;
+}
+function saveConfig(c){localStorage.setItem('glem_config',JSON.stringify(c))}
+function loadProducts(){PRODUCTS=getConfig().products.filter(function(p){return !p.archived})}
+function getActiveSuc(){return getConfig().sucursales.filter(function(s){return s&&s.name&&!s.archived})}
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function sk(s){return 'glem_inv_'+s.replace(/\s+/g,'_')}
+function ak(s){return 'glem_adm_'+s.replace(/\s+/g,'_')}
+function getData(s){return JSON.parse(localStorage.getItem(sk(s))||'[]')}
+function saveData(s,d){localStorage.setItem(sk(s),JSON.stringify(d))}
+function getAdmData(s){return JSON.parse(localStorage.getItem(ak(s))||'{}')}
+function saveAdmRaw(s,d){localStorage.setItem(ak(s),JSON.stringify(d))}
+function getAdmDay(s,date){var d=getAdmData(s);return d[date]||{si:PRODUCTS.map(function(){return 0}),ent:PRODUCTS.map(function(){return 0}),dritz:PRODUCTS.map(function(){return 0})}}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function todayStr(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function pad(n){return String(n).padStart(2,'0')}
+function fmtDate(s){var p=s.split('-');return p[2]+'/'+p[1]+'/'+p[0]}
+function fmt(n){if(n===null||n===undefined||n==='')return '';var v=parseFloat(n);if(isNaN(v))return '';return v%1===0?v:parseFloat(v.toFixed(3))}
+function num(v){return parseFloat(v)||0}
+function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2800)}
+function openModal(id){document.getElementById(id).classList.add('open');setTimeout(function(){var i=document.querySelector('#'+id+' input');if(i)i.focus()},80)}
+function closeModal(id){document.getElementById(id).classList.remove('open');document.querySelectorAll('#'+id+' input').forEach(function(i){i.value=''});document.querySelectorAll('#'+id+' .pin-error').forEach(function(e){e.style.display='none'})}
+function toggleGpg(){document.getElementById('newProdGpg').style.display=document.getElementById('newProdCat').value==='bebida'?'none':''}
+function getPrevSF(s,today){
+  var data=getData(s).filter(function(r){return r.date<today}).sort(function(a,b){return b.date.localeCompare(a.date)});
+  return data.length?data[0].saldoFinal:null;
+}
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+function checkAdm(){
+  if(document.getElementById('admPin').value===getConfig().adminPin){closeModal('modalAdm');loginAs('admin',null)}
+  else document.getElementById('admPinErr').style.display='block';
+}
+function checkGer(){
+  var s=document.getElementById('gerSuc').value;
+  var p=document.getElementById('gerPin').value;
+  var f=getConfig().sucursales.find(function(x){return x&&x.name===s&&x.pin===p&&!x.archived});
+  if(f){closeModal('modalGer');loginAs('gerente',f.name)}
+  else document.getElementById('gerPinErr').style.display='block';
+}
+function loginAs(r,s){
+  role=r;suc=s;
+  document.getElementById('nav').style.display='flex';
+  document.getElementById('navBadge').textContent=r==='admin'?'👑 Administrador':'👔 '+s;
+  loadProducts();buildTabs();
+  if(r==='admin'){switchTab('pageAdmin','tabPanel');renderAdmin()}
+  else{switchTab('pageRegister','tabReg');buildRegTable();checkAlreadySaved()}
+}
+function logout(){role=null;suc=null;admSuc=null;admDate=null;document.getElementById('nav').style.display='none';document.getElementById('tabsBarEl').style.display='none';showPage('pageLogin')}
+function buildTabs(){
+  document.getElementById('tabsBarEl').style.display='block';
+  var el=document.getElementById('tabsEl');
+  if(role==='admin'){
+    el.innerHTML=
+      '<button class="tab adm-tab active" id="tabPanel" onclick="switchTab(\'pageAdmin\',\'tabPanel\');renderAdmin()">📊 Panel</button>'+
+      '<button class="tab adm-tab" id="tabCapturar" onclick="switchTab(\'pageCapturar\',\'tabCapturar\');initAdmCapturar()">✏️ Capturar</button>'+
+      '<button class="tab adm-tab" id="tabEfAdmin" onclick="switchTab(\'pageEfAdmin\',\'tabEfAdmin\');renderEfAdmin()">📈 Eficiencias</button>'+
+      '<button class="tab adm-tab" id="tabAdmCfg" onclick="switchTab(\'pageAdministracion\',\'tabAdmCfg\');renderAdminConfig()">⚙️ Administración</button>';
+  }else{
+    el.innerHTML=
+      '<button class="tab active" id="tabReg" onclick="switchTab(\'pageRegister\',\'tabReg\')">📋 Registro</button>'+
+      '<button class="tab" id="tabHist" onclick="switchTab(\'pageHistory\',\'tabHist\');renderHistory()">📅 Historial</button>'+
+      '<button class="tab" id="tabEf" onclick="switchTab(\'pageEficiencia\',\'tabEf\');renderEficiencia()">📈 Eficiencias</button>';
+  }
+}
+function showPage(id){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});document.getElementById(id).classList.add('active')}
+function switchTab(pid,tid){document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});var t=document.getElementById(tid);if(t)t.classList.add('active');showPage(pid)}
+
+// ── SELECTS ───────────────────────────────────────────────────────────────────
+function populateSelects(){
+  var active=getActiveSuc();
+  ['gerSuc','admFilterSuc','admSucSelect','efAdmSuc'].forEach(function(id){
+    var sel=document.getElementById(id);if(!sel)return;
+    while(sel.options.length>1)sel.remove(1);
+    active.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent=s.name;sel.appendChild(o)});
+  });
+  var pcs=document.getElementById('pinChangeSuc');
+  while(pcs.options.length>1)pcs.remove(1);
+  active.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent='👔 '+s.name;pcs.appendChild(o)});
+}
+populateSelects();loadProducts();
+document.getElementById('admSucSelect').addEventListener('change',function(){admSuc=this.value});
+document.getElementById('efAdmSuc').addEventListener('change',renderEfAdmin);
+document.getElementById('efAdmMonth').addEventListener('change',renderEfAdmin);
+
+// ── EFFICIENCY ────────────────────────────────────────────────────────────────
+function calcEff(da,ca){
+  var c={guiso:{vend:0,cons:0},postre:{vend:0,cons:0},bebida:{vend:0,cons:0}};
+  PRODUCTS.forEach(function(p,i){var f=p.cat==='guiso'?1000:1;c[p.cat].vend+=num(da[i])/f;c[p.cat].cons+=num(ca[i])/f});
+  return c;
+}
+function effColor(v){return v===null?'var(--mut)':v>=95?'var(--grn)':v>=90?'#f9a825':'var(--red)'}
+function effHTML(c){
+  var cats=['guiso','postre','bebida'];
+  var labels={guiso:'Guisos',postre:'Postres',bebida:'Bebidas'};
+  var units={guiso:'Kg',postre:'PZAS',bebida:'PZAS'};
+  function cell(x){return '<td style="padding:7px 10px;border:1px solid var(--bdr)">'+x+'</td>'}
+  function row(arr){return '<tr>'+arr.map(cell).join('')+'</tr>'}
+  return '<table style="width:100%;border-collapse:collapse;font-size:.82rem;background:var(--card);border-radius:10px;overflow:hidden;border:1px solid var(--bdr);margin-top:4px">'+
+    row(cats.map(function(c){return '<strong style="color:#2e7d32">Total '+labels[c]+' '+units[c]+' vendidos</strong>'}))+
+    row(cats.map(function(c){return '<span style="font-size:1rem;font-weight:700;color:var(--or)">'+fmt(parseFloat(c.toString()===c?0:0))+'</span>'})
+      .join('')===''?[]:cats.map(function(cat){return '<span style="font-size:1rem;font-weight:700;color:var(--or)">'+fmt(parseFloat(c[cat].vend.toFixed(3)))+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
+    row(cats.map(function(cat){return '<strong style="color:#1565c0">Total '+labels[cat]+' '+units[cat]+' Consumo</strong>'}))+
+    row(cats.map(function(cat){return '<span style="font-size:1rem;font-weight:700;color:#1565c0">'+fmt(parseFloat(c[cat].cons.toFixed(3)))+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
+    row(cats.map(function(cat){return '<strong style="color:#e65100">Diferencia '+labels[cat]+' '+units[cat]+'</strong>'}))+
+    row(cats.map(function(cat){var dif=parseFloat((c[cat].vend-c[cat].cons).toFixed(3));return '<span style="font-size:1rem;font-weight:700;color:'+(dif>=0?'var(--grn)':'var(--red)')+'">'+dif+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
+    row(cats.map(function(cat){return '<strong style="color:#6a1b9a">Eficiencia '+labels[cat]+'</strong>'}))+
+    row(cats.map(function(cat){var eff=c[cat].cons>0?Math.round((c[cat].vend/c[cat].cons)*100):null;return '<span style="font-size:1.3rem;font-weight:700;color:'+effColor(eff)+'">'+(eff!==null?eff+'%':'—')+'</span>'}))+
+  '</table>';
+}
+function effHTMLsafe(c){
+  var cats=['guiso','postre','bebida'];
+  var labels={guiso:'Guisos',postre:'Postres',bebida:'Bebidas'};
+  var units={guiso:'Kg',postre:'PZAS',bebida:'PZAS'};
+  function cell(x){return '<td style="padding:7px 10px;border:1px solid var(--bdr)">'+x+'</td>'}
+  function row(arr){return '<tr>'+arr.map(cell).join('')+'</tr>'}
+  return '<table style="width:100%;border-collapse:collapse;font-size:.82rem;background:var(--card);border-radius:10px;overflow:hidden;border:1px solid var(--bdr);margin-top:4px">'+
+    row(cats.map(function(cat){return '<strong style="color:#2e7d32">Total '+labels[cat]+' '+units[cat]+' vendidos</strong>'}))+
+    row(cats.map(function(cat){return '<span style="font-size:1rem;font-weight:700;color:var(--or)">'+fmt(parseFloat(c[cat].vend.toFixed(3)))+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
+    row(cats.map(function(cat){return '<strong style="color:#1565c0">Total '+labels[cat]+' '+units[cat]+' Consumo</strong>'}))+
+    row(cats.map(function(cat){return '<span style="font-size:1rem;font-weight:700;color:#1565c0">'+fmt(parseFloat(c[cat].cons.toFixed(3)))+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
+    row(cats.map(function(cat){return '<strong style="color:#e65100">Diferencia '+labels[cat]+' '+units[cat]+'</strong>'}))+
+    row(cats.map(function(cat){var dif=parseFloat((c[cat].vend-c[cat].cons).toFixed(3));return '<span style="font-size:1rem;font-weight:700;color:'+(dif>=0?'var(--grn)':'var(--red)')+'">'+dif+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
+    row(cats.map(function(cat){return '<strong style="color:#6a1b9a">Eficiencia '+labels[cat]+'</strong>'}))+
+    row(cats.map(function(cat){var eff=c[cat].cons>0?Math.round((c[cat].vend/c[cat].cons)*100):null;return '<span style="font-size:1.3rem;font-weight:700;color:'+effColor(eff)+'">'+(eff!==null?eff+'%':'—')+'</span>'}))+
+  '</table>';
+}
+
+// ── REGISTER TABLE (gerente) ──────────────────────────────────────────────────
+function buildRegTable(){
+  var today=todayStr();
+  document.getElementById('regSucBadge').textContent=suc;
+  document.getElementById('regDate').textContent=fmtDate(today);
+  var admDay=getAdmDay(suc,today);
+  // Saldo Inicial: si el admin capturó uno explícitamente usarlo, si no usar el SF del día anterior
+  var prevSF=getPrevSF(suc,today);
+  var admSI=admDay.si||[];
+  var hasAdmSI=admSI.some(function(v){return v>0});
+  var tbody=document.getElementById('regBody');tbody.innerHTML='';
+  var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
+  var lastCat='';
+  PRODUCTS.forEach(function(p,i){
+    if(p.cat!==lastCat){lastCat=p.cat;var sep=document.createElement('tr');sep.innerHTML='<td colspan="12" style="background:var(--or);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[p.cat]+'</td>';tbody.appendChild(sep)}
+    // Admin SI tiene prioridad, luego SF día anterior
+    var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
+    var entAdm=admDay.ent?admDay.ent[i]||0:0;
+    var tr=document.createElement('tr');
+    tr.innerHTML=
+      '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
+      '<td class="c-blue" id="si_'+i+'">'+(fmt(si)||0)+'</td>'+
+      '<td class="c-blue" id="ent_'+i+'">'+(entAdm||0)+'</td>'+
+      LOCS.map(function(l){return '<td class="c-yellow"><input class="qty" type="number" min="0" step="any" id="'+l+'_'+i+'" placeholder="0" oninput="calcRow('+i+')"></td>'}).join('')+
+      '<td class="c-calc" id="sf_'+i+'">0</td>'+
+      '<td class="c-calc" id="cr_'+i+'">0</td>'+
+      '<td class="c-green" id="dritz_'+i+'">'+(admDay.dritz[i]||0)+'</td>'+
+      '<td class="c-calc" id="dtg_'+i+'">—</td>'+
+      '<td class="c-calc" id="dif_'+i+'">—</td>';
+    tbody.appendChild(tr);
+  });
+  document.getElementById('regFoot').innerHTML='<tr class="total-row"><td colspan="2">TOTAL</td>'+
+    '<td id="tot_si">0</td><td id="tot_ent">0</td>'+
+    LOCS.map(function(l){return '<td id="tot_'+l+'">0</td>'}).join('')+
+    '<td id="tot_sf">0</td><td id="tot_cr">0</td><td id="tot_dritz">0</td><td>—</td><td>—</td></tr>';
+  recalcAll();
+}
+
+function calcRow(i){
+  var si=num(document.getElementById('si_'+i).textContent);
+  var ent=num(document.getElementById('ent_'+i).textContent);
+  var lv=LOCS.map(function(l){return num(document.getElementById(l+'_'+i).value)});
+  // Saldo Final = Baño María + Refrigerador + Congelador (sin entrada)
+  var sf=lv.reduce(function(a,b){return a+b},0);
+  // Consumo Real = (Saldo Inicial + Entrada) - Saldo Final
+  var cr=(si+ent)-sf;
+  document.getElementById('sf_'+i).textContent=fmt(sf);
+  document.getElementById('cr_'+i).textContent=fmt(cr);
+  var dritz=num(document.getElementById('dritz_'+i).textContent);
+  var difG=dritz?cr-dritz:null;
+  document.getElementById('dif_'+i).textContent=difG!==null?fmt(difG):'—';
+  document.getElementById('dtg_'+i).textContent=difG!==null?Math.round(difG/PRODUCTS[i].gpg):'—';
+  updateTotals();updateEffLive();
+}
+function recalcAll(){PRODUCTS.forEach(function(_,i){calcRow(i)})}
+function updateTotals(){
+  ['si','ent'].concat(LOCS).concat(['sf','cr','dritz']).forEach(function(k){
+    var t=0;
+    PRODUCTS.forEach(function(_,i){
+      var el=document.getElementById(k+'_'+i);if(!el)return;
+      t+=el.tagName==='INPUT'?num(el.value):num(el.textContent);
+    });
+    var tot=document.getElementById('tot_'+k);if(tot)tot.textContent=fmt(t);
+  });
+}
+function updateEffLive(){
+  var today=todayStr();
+  var saved=getData(suc).find(function(r){return r.date===today});
+  if(saved&&saved.eficiencia){document.getElementById('effGrid').innerHTML=effHTMLsafe(saved.eficiencia);return}
+  var admDay=getAdmDay(suc,today);
+  var da=PRODUCTS.map(function(_,i){return admDay.dritz[i]||0});
+  var ca=PRODUCTS.map(function(_,i){var el=document.getElementById('cr_'+i);return el?num(el.textContent):0});
+  document.getElementById('effGrid').innerHTML=effHTMLsafe(calcEff(da,ca));
+}
+
+// Refresh automático desde admin (botón del gerente)
+function refreshFromAdmin(){
+  var today=todayStr();
+  var admDay=getAdmDay(suc,today);
+  var prevSF=getPrevSF(suc,today);
+  var admSI=admDay.si||[];
+  var hasAdmSI=admSI.some(function(v){return v>0});
+  PRODUCTS.forEach(function(_,i){
+    var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
+    var siEl=document.getElementById('si_'+i);if(siEl)siEl.textContent=fmt(si)||0;
+    var entEl=document.getElementById('ent_'+i);if(entEl)entEl.textContent=admDay.ent?admDay.ent[i]||0:0;
+    var dritzEl=document.getElementById('dritz_'+i);if(dritzEl)dritzEl.textContent=admDay.dritz[i]||0;
+  });
+  recalcAll();
+  var saved=getData(suc).find(function(r){return r.date===today});
+  if(saved&&saved.eficiencia)document.getElementById('effGrid').innerHTML=effHTMLsafe(saved.eficiencia);
+  toast('🔃 Datos actualizados desde administrador');
+}
+
+function clearGerente(){
+  PRODUCTS.forEach(function(_,i){
+    LOCS.forEach(function(l){document.getElementById(l+'_'+i).value=''});
+    document.getElementById('sf_'+i).textContent='0';
+    document.getElementById('cr_'+i).textContent='0';
+    document.getElementById('dif_'+i).textContent='—';
+    document.getElementById('dtg_'+i).textContent='—';
+  });
+  updateTotals();updateEffLive();toast('Campos limpiados');
+}
+
+function checkAlreadySaved(){
+  var already=getData(suc).find(function(r){return r.date===todayStr()});
+  var btn=document.getElementById('saveDayBtn');
+  if(already){btn.disabled=true;btn.textContent='✅ Registro de hoy ya guardado'}
+  else{btn.disabled=false;btn.textContent='💾 Guardar Registro'}
+}
+
+function saveDay(){
+  var today=todayStr();
+  if(getData(suc).find(function(r){return r.date===today})){toast('⚠️ Ya se registró el inventario de hoy');clearGerente();return}
+  var rows=PRODUCTS.map(function(_,i){
+    return{
+      ent:num(document.getElementById('ent_'+i).textContent),
+      locs:LOCS.map(function(l){return num(document.getElementById(l+'_'+i).value)})
+    };
+  });
+  if(!rows.some(function(r){return r.locs.some(function(v){return v>0})})){toast('⚠️ No hay datos para guardar');return}
+  var sf=PRODUCTS.map(function(_,i){
+    // Saldo Final = solo locs (sin entrada)
+    return LOCS.reduce(function(a,l){return a+num(document.getElementById(l+'_'+i).value)},0);
+  });
+  var cr=PRODUCTS.map(function(_,i){
+    // Consumo Real = (SI + Entrada) - SF
+    return (num(document.getElementById('si_'+i).textContent)+num(document.getElementById('ent_'+i).textContent))-sf[i];
+  });
+  var data=getData(suc);
+  data.unshift({date:today,rows:rows,saldoFinal:sf,consumoReal:cr});
+  saveData(suc,data);
+  clearGerente();
+  var btn=document.getElementById('saveDayBtn');btn.disabled=true;btn.textContent='✅ Registro de hoy ya guardado';
+  toast('✅ Registro guardado');
+}
+
+// ── ADMIN CAPTURAR ────────────────────────────────────────────────────────────
+function initAdmCapturar(){
+  var dp=document.getElementById('admDatePicker');
+  if(!dp.value)dp.value=todayStr();
+}
+
+function loadAdmTable(){
+  admSuc=document.getElementById('admSucSelect').value;
+  admDate=document.getElementById('admDatePicker').value||todayStr();
+  if(!admSuc){toast('⚠️ Selecciona una sucursal');return}
+  document.getElementById('admRegSucBadge').textContent=admSuc;
+  document.getElementById('admRegDate').textContent=fmtDate(admDate);
+  var admDay=getAdmDay(admSuc,admDate);
+  var prevSF=getPrevSF(admSuc,admDate);
+  var tbody=document.getElementById('admBody');tbody.innerHTML='';
+  var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
+  var lastCat='';
+  PRODUCTS.forEach(function(p,i){
+    if(p.cat!==lastCat){lastCat=p.cat;var sep=document.createElement('tr');sep.innerHTML='<td colspan="5" style="background:var(--adm);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[p.cat]+'</td>';tbody.appendChild(sep)}
+    var si=prevSF?prevSF[i]:(admDay.si[i]||0);
+    var tr=document.createElement('tr');
+    tr.innerHTML=
+      '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
+      '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="a_si_'+i+'" value="'+(si||0)+'" placeholder="0"></td>'+
+      '<td class="c-yellow"><input class="qty adm-inp" type="number" min="0" step="any" id="a_ent_'+i+'" value="'+(admDay.ent?admDay.ent[i]||'':'') +'" placeholder="0"></td>'+
+      '<td class="c-green"><input class="qty adm-inp" type="number" min="0" step="any" id="a_dritz_'+i+'" value="'+(admDay.dritz[i]||'')+'" placeholder="0"></td>';
+    tbody.appendChild(tr);
+  });
+  toast('✅ Tabla cargada para '+admSuc+' — '+fmtDate(admDate));
+}
+
+function saveAdmData(){
+  if(!admSuc||!admDate){toast('⚠️ Carga primero la tabla');return}
+  var d=getAdmData(admSuc);
+  var si=PRODUCTS.map(function(_,i){var el=document.getElementById('a_si_'+i);return el?num(el.value):0});
+  var ent=PRODUCTS.map(function(_,i){var el=document.getElementById('a_ent_'+i);return el?num(el.value):0});
+  var dritz=PRODUCTS.map(function(_,i){var el=document.getElementById('a_dritz_'+i);return el?num(el.value):0});
+  d[admDate]={si:si,ent:ent,dritz:dritz};
+  saveAdmRaw(admSuc,d);
+  // Actualizar registro del gerente si existe
+  var invData=getData(admSuc);
+  var rec=invData.find(function(r){return r.date===admDate});
+  if(rec){
+    var prevSF=getPrevSF(admSuc,admDate);
+    // Saldo Final = locs sin entrada
+    rec.saldoFinal=PRODUCTS.map(function(_,i){
+      var locs=rec.rows[i]&&rec.rows[i].locs?rec.rows[i].locs:[0,0,0];
+      return locs.reduce(function(a,b){return a+b},0);
+    });
+    // Consumo Real = (SI + Entrada) - SF
+    rec.consumoReal=PRODUCTS.map(function(_,i){
+      var sv=hasAdmSI?(si[i]||0):(prevSF?prevSF[i]:0);
+      return (sv+ent[i])-rec.saldoFinal[i];
+    });
+    rec.diferencia=PRODUCTS.map(function(p,i){
+      var dg=dritz[i]?rec.consumoReal[i]-dritz[i]:null;
+      return{difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null};
+    });
+    rec.eficiencia=calcEff(dritz,rec.consumoReal);
+    saveData(admSuc,invData);
+    // Refrescar vistas admin
+    if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
+    if(document.getElementById('pageEfAdmin').classList.contains('active'))renderEfAdmin();
+    toast('✅ Guardado — reportes de '+admSuc+' actualizados');
+  }else{
+    toast('✅ Datos admin guardados para '+admSuc+' '+fmtDate(admDate));
+  }
+}
+
+// ── PLANTILLAS ────────────────────────────────────────────────────────────────
+function downloadPlantilla(tipo){
+  var titles={si:'Saldo Inicial',ent:'Entrada',dritz:'Consumo Dritzline'};
+  var rows=[['Producto','Valor']];
+  PRODUCTS.forEach(function(p){rows.push([p.name,''])});
+  var ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:38},{wch:16}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,titles[tipo]||tipo);
+  XLSX.writeFile(wb,'plantilla_'+tipo+'_'+(admSuc||'sucursal')+'.xlsx');
+  toast('⬇️ Plantilla descargada');
+}
+function importExcel(input,tipo){
+  if(!admSuc){toast('⚠️ Selecciona y carga una sucursal primero');input.value='';return}
+  var file=input.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var data=new Uint8Array(e.target.result);
+      var wb=XLSX.read(data,{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var map={};
+      rows.slice(1).forEach(function(row){var name=String(row[0]||'').trim();var val=parseFloat(row[1])||0;if(name)map[name]=val});
+      var matched=0;
+      PRODUCTS.forEach(function(p,i){
+        var val=map[p.name];
+        if(val!==undefined){
+          var id=tipo==='si'?'a_si_'+i:tipo==='ent'?'a_ent_'+i:'a_dritz_'+i;
+          var el=document.getElementById(id);if(el){el.value=val;matched++}
+        }
+      });
+      toast('✅ Importados '+matched+' productos');
+    }catch(err){toast('❌ Error al leer el archivo')}
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+function renderHistory(){
+  document.getElementById('histSucTitle').textContent=suc;
+  var filter=document.getElementById('filterMonth').value;
+  var data=getData(suc);
+  if(filter)data=data.filter(function(r){return r.date.startsWith(filter)});
+  data.sort(function(a,b){return b.date.localeCompare(a.date)});
+  var el=document.getElementById('histList');
+  if(!data.length){el.innerHTML='<div class="empty-state">No hay registros.</div>';return}
+  el.innerHTML=data.map(function(rec){return buildHistEntry(rec,suc)}).join('');
+}
+
+function buildHistEntry(rec,sucursal){
+  var admDay=getAdmDay(sucursal,rec.date);
+  var rows=PRODUCTS.map(function(p,i){
+    var lv=LOCS.map(function(_,j){return rec.rows&&rec.rows[i]&&rec.rows[i].locs?rec.rows[i].locs[j]||0:0});
+    var sf=rec.saldoFinal?rec.saldoFinal[i]||0:0;
+    var cr=rec.consumoReal?rec.consumoReal[i]||0:0;
+    var ent=rec.rows&&rec.rows[i]?rec.rows[i].ent||0:0;
+    var dritz=admDay.dritz[i]||0;
+    var difObj=rec.diferencia?rec.diferencia[i]:null;
+    var difG=difObj?difObj.difG:(dritz?cr-dritz:null);
+    var dtg=difObj?difObj.dtg:(difG!==null?Math.round(difG/p.gpg):null);
+    if(!sf&&!cr&&!lv.some(function(v){return v}))return '';
+    return '<tr>'+
+      '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
+      '<td>'+(admDay.si[i]||0)+'</td>'+
+      '<td>'+(ent)+'</td>'+
+      lv.map(function(v){return '<td>'+(v||'')+'</td>'}).join('')+
+      '<td class="c-calc">'+fmt(sf)+'</td>'+
+      '<td class="c-calc">'+fmt(cr)+'</td>'+
+      '<td class="c-green">'+(dritz||'—')+'</td>'+
+      '<td class="c-calc">'+(dtg!==null?dtg:'—')+'</td>'+
+      '<td class="c-calc">'+(difG!==null?fmt(difG):'—')+'</td></tr>';
+  }).filter(Boolean).join('');
+  var totSF=fmt((rec.saldoFinal||[]).reduce(function(a,b){return a+b},0));
+  var effCats=rec.eficiencia||calcEff(PRODUCTS.map(function(_,i){return admDay.dritz[i]||0}),PRODUCTS.map(function(_,i){return rec.consumoReal?rec.consumoReal[i]||0:0}));
+  return '<div class="hist-entry">'+
+    '<div class="hist-hdr" onclick="toggleEntry(this)">'+
+    '<h3>📅 '+fmtDate(rec.date)+'</h3>'+
+    '<span style="font-size:.78rem;color:#5a3800;font-weight:700">SF: '+totSF+'</span></div>'+
+    '<div style="display:none">'+
+    '<div class="tbl-wrap" style="border-radius:0;border:none"><table style="min-width:600px">'+
+    '<thead><tr><th>Producto</th><th>Unidad</th><th>S.Inicial</th><th>Entrada</th>'+
+    LOC_LABELS.map(function(l){return '<th>'+l+'</th>'}).join('')+
+    '<th>S.Final</th><th>C.Real</th><th>Dritzline</th><th>Df.Teórica</th><th>Diferencia(g)</th></tr></thead>'+
+    '<tbody>'+(rows||'<tr><td colspan="12" style="text-align:center;color:var(--mut)">Sin datos</td></tr>')+'</tbody>'+
+    '</table></div>'+
+    '<div style="padding:10px">'+effHTMLsafe(effCats)+'</div>'+
+    '</div></div>';
+}
+function toggleEntry(h){var b=h.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'}
+
+// ── EFICIENCIAS ───────────────────────────────────────────────────────────────
+function getEfData(sucursal,fm){
+  var data=getData(sucursal);
+  if(fm)data=data.filter(function(r){return r.date.startsWith(fm)});
+  data.sort(function(a,b){return a.date.localeCompare(b.date)});
+  return data.map(function(rec){
+    var admDay=getAdmDay(sucursal,rec.date);
+    var eff=rec.eficiencia||calcEff(admDay.dritz||PRODUCTS.map(function(){return 0}),rec.consumoReal||PRODUCTS.map(function(){return 0}));
+    var g=eff.guiso.cons>0?Math.round((eff.guiso.vend/eff.guiso.cons)*100):null;
+    var p=eff.postre.cons>0?Math.round((eff.postre.vend/eff.postre.cons)*100):null;
+    var b=eff.bebida.cons>0?Math.round((eff.bebida.vend/eff.bebida.cons)*100):null;
+    return{date:rec.date,g:g,p:p,b:b};
+  }).filter(function(r){return r.g!==null||r.p!==null||r.b!==null});
+}
+function buildEfHTML(sucursal,fm){
+  var allRows=getEfData(sucursal,'');
+  if(!allRows.length)return '<div class="empty-state">No hay datos de eficiencia.</div>';
+  var byMonth={};allRows.forEach(function(r){var m=r.date.substr(0,7);if(!byMonth[m])byMonth[m]=[];byMonth[m].push(r)});
+  var months=Object.keys(byMonth).sort(function(a,b){return b.localeCompare(a)});
+  if(fm)months=months.filter(function(m){return m===fm});
+  if(!months.length)return '<div class="empty-state">No hay datos para este período.</div>';
+  function avg(arr,key){var vals=arr.map(function(r){return r[key]}).filter(function(v){return v!==null});return vals.length?Math.round(vals.reduce(function(a,b){return a+b},0)/vals.length):null}
+  function fmtM(m){var p=m.split('-');var n=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];return n[parseInt(p[1])-1]+' '+p[0]}
+  function badge(v){return v===null?'—':'<span style="font-weight:700;color:'+effColor(v)+'">'+v+'%</span>'}
+  var resumen='<div class="tbl-wrap" style="margin-bottom:18px"><table style="min-width:400px">'+
+    '<thead><tr style="background:var(--adm);color:#fff"><th>Mes</th><th>Prom. Guisos</th><th>Prom. Postres</th><th>Prom. Bebidas</th><th>Días</th></tr></thead><tbody>'+
+    months.map(function(m){var rows=byMonth[m];return '<tr><td style="font-weight:700">'+fmtM(m)+'</td><td>'+badge(avg(rows,'g'))+'</td><td>'+badge(avg(rows,'p'))+'</td><td>'+badge(avg(rows,'b'))+'</td><td style="color:var(--mut)">'+rows.length+'</td></tr>'}).join('')+
+    '</tbody></table></div>';
+  var detalle=months.map(function(m){var rows=byMonth[m];
+    return '<div style="margin-bottom:20px"><h3 style="font-size:.95rem;font-weight:700;color:var(--adm);margin-bottom:8px">📅 '+fmtM(m)+'</h3>'+
+    '<div class="tbl-wrap"><table style="min-width:400px"><thead><tr><th>Fecha</th><th>Ef. Guisos</th><th>Ef. Postres</th><th>Ef. Bebidas</th></tr></thead><tbody>'+
+    rows.map(function(r){return '<tr><td style="font-weight:600">'+fmtDate(r.date)+'</td><td>'+badge(r.g)+'</td><td>'+badge(r.p)+'</td><td>'+badge(r.b)+'</td></tr>'}).join('')+
+    '</tbody><tfoot><tr style="background:var(--orl);font-weight:700"><td>PROMEDIO MES</td><td>'+badge(avg(rows,'g'))+'</td><td>'+badge(avg(rows,'p'))+'</td><td>'+badge(avg(rows,'b'))+'</td></tr></tfoot></table></div></div>';
+  }).join('');
+  return '<h3 style="font-size:.95rem;font-weight:700;color:var(--adm);margin-bottom:10px">Cierre por Mes</h3>'+resumen+
+    '<h3 style="font-size:.95rem;font-weight:700;color:var(--or);margin-bottom:10px">Detalle Diario</h3>'+detalle;
+}
+function renderEficiencia(){document.getElementById('efSucBadge').textContent=suc;document.getElementById('efContent').innerHTML=buildEfHTML(suc,document.getElementById('efMonth').value)}
+function renderEfAdmin(){var s=document.getElementById('efAdmSuc').value;var fm=document.getElementById('efAdmMonth').value;if(!s){document.getElementById('efAdmContent').innerHTML='<div class="empty-state">Selecciona una sucursal.</div>';return}document.getElementById('efAdmContent').innerHTML=buildEfHTML(s,fm)}
+
+// ── ADMIN PANEL ───────────────────────────────────────────────────────────────
+function renderAdmin(){
+  var fm=document.getElementById('admFilterMonth').value;
+  var fs=document.getElementById('admFilterSuc').value;
+  var subs=getConfig().sucursales.filter(function(s){return s&&s.name&&!s.archived&&(fs?s.name===fs:true)});
+  var cards=subs.map(function(s){
+    var data=getData(s.name);
+    if(fm)data=data.filter(function(r){return r.date.startsWith(fm)});
+    var total=data.reduce(function(a,r){return a+(r.saldoFinal||[]).reduce(function(b,v){return b+v},0)},0);
+    var sorted=data.slice().sort(function(a,b){return b.date.localeCompare(a.date)});
+    var last=sorted.length?fmtDate(sorted[0].date):'Sin registros';
+    var key=s.name.replace(/\s+/g,'_');
+    return '<div class="suc-card" onclick="toggleSD(\'det_'+key+'\')"><h4>🏪 '+s.name+'</h4><div class="sc-stat">Último: '+last+'</div><div class="sc-total">'+fmt(total)+'</div><div class="sc-stat">'+data.length+' registro(s)</div></div>';
+  }).join('');
+  var details=subs.map(function(s){
+    var data=getData(s.name);
+    if(fm)data=data.filter(function(r){return r.date.startsWith(fm)});
+    data.sort(function(a,b){return b.date.localeCompare(a.date)});
+    var key=s.name.replace(/\s+/g,'_');
+    return '<div id="det_'+key+'" style="display:none;margin-bottom:8px">'+(data.length?data.map(function(r){return buildHistEntry(r,s.name)}).join(''):'<div class="empty-state">Sin registros</div>')+'</div>';
+  }).join('');
+  document.getElementById('adminContent').innerHTML='<div class="suc-grid">'+cards+'</div>'+details;
+}
+function toggleSD(id){var e=document.getElementById(id);if(e)e.style.display=e.style.display==='none'?'block':'none'}
+
+// ── ADMINISTRACION ────────────────────────────────────────────────────────────
+function renderAdminConfig(){
+  var cfg=getConfig();
+  var aS=cfg.sucursales.filter(function(s){return s&&s.name&&!s.archived});
+  var arS=cfg.sucursales.filter(function(s){return s&&s.name&&s.archived});
+  var aP=cfg.products.filter(function(p){return !p.archived});
+  var arP=cfg.products.filter(function(p){return p.archived});
+  var catIcon={guiso:'🥩',postre:'🍞',bebida:'🥤'};
+  var pcs=document.getElementById('pinChangeSuc');while(pcs.options.length>1)pcs.remove(1);
+  aS.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent='👔 '+s.name;pcs.appendChild(o)});
+  var sl=document.getElementById('sucursalesList');sl.innerHTML='';
+  aS.forEach(function(s){
+    var div=document.createElement('div');div.className='item-row';
+    div.innerHTML='<span style="font-weight:600">🏪 '+s.name+'</span><div style="display:flex;align-items:center;gap:8px"><span style="color:var(--mut);font-size:.8rem">PIN: '+'•'.repeat(s.pin.length)+'</span></div>';
+    var btn=document.createElement('button');btn.className='btn btn-sec';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='📦 Archivar';
+    btn.onclick=(function(name){return function(){archiveSuc(name)}})(s.name);
+    div.querySelector('div').appendChild(btn);sl.appendChild(div);
+  });
+  if(!aS.length)sl.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay sucursales activas.</p>';
+  var sa=document.getElementById('sucursalesArchivadas');sa.innerHTML='';
+  arS.forEach(function(s){
+    var div=document.createElement('div');div.className='item-row';div.style.opacity='.6';
+    div.innerHTML='<span style="font-weight:600">📦 '+s.name+'</span>';
+    var btn=document.createElement('button');btn.className='btn btn-grn';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='↩️ Restaurar';
+    btn.onclick=(function(name){return function(){restoreSuc(name)}})(s.name);
+    div.appendChild(btn);sa.appendChild(div);
+  });
+  if(!arS.length)sa.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay sucursales archivadas.</p>';
+  var pl=document.getElementById('productosList');pl.innerHTML='';
+  aP.forEach(function(p){
+    var costoLabel=p.cat==='guiso'?'$'+p.costo+'/Kg':'$'+p.costo+'/unidad';
+    var gpgLabel=p.cat!=='bebida'?' · '+p.gpg+'g/gordita':'';
+    var div=document.createElement('div');div.className='item-row';
+    div.innerHTML='<div><span style="font-weight:600">'+catIcon[p.cat]+' '+p.name+'</span><span style="color:var(--mut);font-size:.75rem;margin-left:8px">'+costoLabel+gpgLabel+'</span></div>';
+    var btn=document.createElement('button');btn.className='btn btn-sec';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='📦 Archivar';
+    btn.onclick=(function(name){return function(){archiveProduct(name)}})(p.name);
+    div.appendChild(btn);pl.appendChild(div);
+  });
+  if(!aP.length)pl.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay productos activos.</p>';
+  var pa=document.getElementById('productosArchivados');pa.innerHTML='';
+  arP.forEach(function(p){
+    var div=document.createElement('div');div.className='item-row';div.style.opacity='.6';
+    div.innerHTML='<span style="font-weight:600">📦 '+p.name+'</span>';
+    var btn=document.createElement('button');btn.className='btn btn-grn';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='↩️ Restaurar';
+    btn.onclick=(function(name){return function(){restoreProduct(name)}})(p.name);
+    div.appendChild(btn);pa.appendChild(div);
+  });
+  if(!arP.length)pa.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay productos archivados.</p>';
+}
+function changePin(){
+  var target=document.getElementById('pinChangeSuc').value;
+  var newPin=document.getElementById('pinChangeVal').value.trim();
+  var msg=document.getElementById('pinChangeMsg');
+  if(!newPin||newPin.length<3){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ PIN debe tener al menos 3 caracteres';return}
+  var cfg=getConfig();
+  if(target==='__admin__')cfg.adminPin=newPin;
+  else{var s=cfg.sucursales.find(function(x){return x&&x.name===target});if(s)s.pin=newPin}
+  saveConfig(cfg);document.getElementById('pinChangeVal').value='';
+  msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='✅ PIN actualizado';
+  setTimeout(function(){msg.style.display='none'},3000);
+}
+function addSucursal(){
+  var name=document.getElementById('newSucName').value.trim();
+  var pin=document.getElementById('newSucPin').value.trim();
+  var msg=document.getElementById('newSucMsg');
+  if(!name||!pin){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ingresa nombre y PIN';return}
+  var cfg=getConfig();
+  if(cfg.sucursales.find(function(s){return s&&s.name&&s.name.toLowerCase()===name.toLowerCase()})){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ya existe';return}
+  cfg.sucursales.push({name:name,pin:pin,archived:false});saveConfig(cfg);
+  document.getElementById('newSucName').value='';document.getElementById('newSucPin').value='';
+  msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='✅ Sucursal agregada';
+  setTimeout(function(){msg.style.display='none'},3000);renderAdminConfig();populateSelects();
+}
+function archiveSuc(name){if(!confirm('¿Archivar "'+name+'"?'))return;var cfg=getConfig();var s=cfg.sucursales.find(function(x){return x&&x.name===name});if(s)s.archived=true;saveConfig(cfg);renderAdminConfig();populateSelects();toast('📦 Archivada')}
+function restoreSuc(name){var cfg=getConfig();var s=cfg.sucursales.find(function(x){return x&&x.name===name});if(s)s.archived=false;saveConfig(cfg);renderAdminConfig();populateSelects();toast('✅ Restaurada')}
+function addProduct(){
+  var name=document.getElementById('newProdName').value.trim();
+  var cat=document.getElementById('newProdCat').value;
+  var costo=parseFloat(document.getElementById('newProdCosto').value)||0;
+  var gpg=cat==='bebida'?1:parseInt(document.getElementById('newProdGpg').value)||1;
+  var unit=cat==='guiso'?'g':cat==='postre'?'PZA':'Botella';
+  var msg=document.getElementById('newProdMsg');
+  if(!name){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ingresa el nombre';return}
+  var cfg=getConfig();
+  if(cfg.products.find(function(p){return p.name.toLowerCase()===name.toLowerCase()})){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ya existe';return}
+  cfg.products.push({name:name,unit:unit,cat:cat,gpg:gpg,costo:costo,archived:false});
+  saveConfig(cfg);loadProducts();
+  document.getElementById('newProdName').value='';document.getElementById('newProdCosto').value='';document.getElementById('newProdGpg').value='';
+  msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='✅ Producto agregado';
+  setTimeout(function(){msg.style.display='none'},3000);renderAdminConfig();
+}
+function archiveProduct(name){if(!confirm('¿Archivar "'+name+'"?'))return;var cfg=getConfig();var p=cfg.products.find(function(x){return x.name===name});if(p)p.archived=true;saveConfig(cfg);loadProducts();renderAdminConfig();toast('📦 Archivado')}
+function restoreProduct(name){var cfg=getConfig();var p=cfg.products.find(function(x){return x.name===name});if(p)p.archived=false;saveConfig(cfg);loadProducts();renderAdminConfig();toast('✅ Restaurado')}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+function buildExcelRows(sucursal,data){
+  var hdr=['Sucursal','Fecha','Producto','Unidad','Saldo Inicial','Entrada'].concat(LOC_LABELS).concat(['Saldo Final','Consumo Real','Dritzline','Df. Teórica','Diferencia (g)']);
+  var rows=[hdr];
+  data.forEach(function(rec){
+    var admDay=getAdmDay(sucursal,rec.date);
+    PRODUCTS.forEach(function(p,i){
+      var lv=LOCS.map(function(_,j){return rec.rows&&rec.rows[i]&&rec.rows[i].locs?rec.rows[i].locs[j]||0:0});
+      var sf=rec.saldoFinal?rec.saldoFinal[i]||0:0;
+      var cr=rec.consumoReal?rec.consumoReal[i]||0:0;
+      var ent=rec.rows&&rec.rows[i]?rec.rows[i].ent||0:0;
+      var dritz=admDay.dritz[i]||0;
+      var difObj=rec.diferencia?rec.diferencia[i]:null;
+      var difG=difObj?difObj.difG:(dritz?cr-dritz:'');
+      var dtg=difObj?difObj.dtg:(difG!==''?Math.round(difG/p.gpg):'');
+      rows.push([sucursal,fmtDate(rec.date),p.name,p.unit,admDay.si[i]||0,ent].concat(lv).concat([sf,cr,dritz,dtg,difG]));
+    });
+  });
+  return rows;
+}
+function exportExcelSuc(){
+  var data=getData(suc).sort(function(a,b){return b.date.localeCompare(a.date)});
+  if(!data.length){toast('No hay datos');return}
+  writeExcel(buildExcelRows(suc,data),'inventario_'+suc+'_'+todayStr()+'.xlsx');toast('📥 Excel descargado');
+}
+function exportExcelGlobal(){
+  var hdr=['Sucursal','Fecha','Producto','Unidad','Saldo Inicial','Entrada'].concat(LOC_LABELS).concat(['Saldo Final','Consumo Real','Dritzline','Df. Teórica','Diferencia (g)']);
+  var all=[hdr];
+  getConfig().sucursales.filter(function(s){return s&&s.name&&!s.archived}).forEach(function(s){
+    var data=getData(s.name).sort(function(a,b){return b.date.localeCompare(a.date)});
+    if(data.length)buildExcelRows(s.name,data).slice(1).forEach(function(r){all.push(r)});
+  });
+  if(all.length<=1){toast('No hay datos');return}
+  writeExcel(all,'inventario_global_'+todayStr()+'.xlsx');toast('📥 Excel global descargado');
+}
+function writeExcel(rows,filename){
+  var ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map(function(){return{wch:14}});
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventario');XLSX.writeFile(wb,filename);
+}
+
+// ── POLLING ───────────────────────────────────────────────────────────────────
+setInterval(function(){
+  if(role==='gerente'&&document.getElementById('pageRegister').classList.contains('active')){
+    var today=todayStr();
+    var saved=getData(suc).find(function(r){return r.date===today});
+    if(saved&&saved.eficiencia)document.getElementById('effGrid').innerHTML=effHTMLsafe(saved.eficiencia);
+  }
+  if(role==='gerente'&&document.getElementById('pageHistory').classList.contains('active'))renderHistory();
+},30000);
+</script>
+</body>
+</html>
