@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario Gorditas - Grupo LEM</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--or:#e07b00;--orl:#f9a825;--bg:#fff8f0;--card:#fff;--bdr:#f0d9b5;--txt:#2d1a00;--mut:#888;--red:#c0392b;--grn:#27ae60;--adm:#4a148c}
@@ -13,6 +15,9 @@ nav{background:var(--or);color:#fff;padding:10px 14px;display:flex;align-items:c
 nav h1{font-size:.98rem;font-weight:700}
 .nav-right{display:flex;align-items:center;gap:8px}
 .role-badge{background:#fff3;border-radius:20px;padding:3px 10px;font-size:.76rem;white-space:nowrap}
+.conn-badge{width:8px;height:8px;border-radius:50%;background:#red;display:inline-block;margin-right:4px}
+.conn-badge.online{background:#27ae60}
+.conn-badge.offline{background:#c0392b}
 .logout-btn{background:#fff2;border:1px solid #fff5;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.78rem}
 .page{display:none;padding:14px;max-width:100%;margin:0 auto}
 .page.active{display:block}
@@ -20,7 +25,8 @@ nav h1{font-size:.98rem;font-weight:700}
 .login-card{background:var(--card);border-radius:16px;padding:30px 26px;box-shadow:0 4px 24px #e07b0022;width:100%;max-width:360px;text-align:center}
 .login-card .logo{font-size:2.6rem;margin-bottom:6px}
 .login-card h2{color:var(--or);font-size:1.2rem;margin-bottom:4px}
-.login-card p{color:var(--mut);font-size:.85rem;margin-bottom:20px}
+.login-card p{color:var(--mut);font-size:.85rem;margin-bottom:6px}
+.conn-status{font-size:.78rem;margin-bottom:16px}
 .role-btns{display:flex;flex-direction:column;gap:11px}
 .role-btn{padding:13px;border-radius:10px;border:2px solid var(--bdr);background:#fff;cursor:pointer;font-size:.95rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:10px;justify-content:center}
 .role-btn:hover{border-color:var(--or);background:var(--bg)}
@@ -90,6 +96,7 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
 .cfg-box{background:var(--card);border-radius:12px;border:1px solid var(--bdr);padding:16px;margin-bottom:16px}
 .cfg-box h3{font-size:.95rem;font-weight:700;margin-bottom:12px;color:var(--adm)}
 .item-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bdr);flex-wrap:wrap;gap:6px}
+.loading{text-align:center;padding:40px;color:var(--mut)}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#2d1a00;color:#fff;padding:11px 20px;border-radius:10px;font-size:.86rem;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 @media(max-width:480px){input.qty{width:58px;font-size:.78rem}thead th,td{padding:5px 3px;font-size:.76rem}}
@@ -100,6 +107,7 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
 <nav id="nav" style="display:none">
   <h1>🫓 Gorditas — Grupo LEM</h1>
   <div class="nav-right">
+    <span id="connBadge"><span class="conn-badge offline"></span></span>
     <span class="role-badge" id="navBadge"></span>
     <button class="logout-btn" onclick="logout()">Salir</button>
   </div>
@@ -113,6 +121,7 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
       <div class="logo">🫓</div>
       <h2>Grupo LEM — Gorditas</h2>
       <p>Sistema de Inventario Diario</p>
+      <div class="conn-status" id="connStatus">⏳ Conectando...</div>
       <div class="role-btns">
         <button class="role-btn adm" onclick="openModal('modalAdm')">👑 Administrador</button>
         <button class="role-btn ger" onclick="openModal('modalGer')">👔 Gerente de Sucursal</button>
@@ -150,7 +159,7 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
   </div>
 </div>
 
-<!-- REGISTER PAGE (gerente) -->
+<!-- REGISTER PAGE -->
 <div class="page" id="pageRegister">
   <div class="sec-header">
     <h2>Registro del Día</h2>
@@ -160,8 +169,8 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
     </div>
   </div>
   <div class="legend">
-    <div class="leg-item"><div class="leg-dot" style="background:#fffde7"></div> Gerente captura</div>
-    <div class="leg-item"><div class="leg-dot" style="background:#e3f2fd"></div> Admin captura</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#fffde7"></div> Gerente</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#e3f2fd"></div> Admin</div>
     <div class="leg-item"><div class="leg-dot" style="background:#fce4ec"></div> Calculado</div>
   </div>
   <div class="tbl-wrap"><table>
@@ -188,11 +197,10 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
   <div style="display:flex;gap:9px;flex-wrap:wrap">
     <button class="btn btn-or" id="saveDayBtn" onclick="saveDay()">💾 Guardar Registro</button>
     <button class="btn btn-sec" onclick="clearGerente()">🔄 Limpiar</button>
-
   </div>
 </div>
 
-<!-- HISTORY (gerente) -->
+<!-- HISTORY -->
 <div class="page" id="pageHistory">
   <div class="sec-header"><h2>Historial — <span id="histSucTitle"></span></h2></div>
   <div class="action-bar"><button class="btn btn-grn" onclick="exportExcelSuc()">📥 Exportar Excel</button></div>
@@ -203,12 +211,9 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
   <div id="histList"></div>
 </div>
 
-<!-- EFICIENCIAS (gerente) -->
+<!-- EFICIENCIAS GERENTE -->
 <div class="page" id="pageEficiencia">
-  <div class="sec-header">
-    <h2>📈 Eficiencias</h2>
-    <span class="badge badge-or" id="efSucBadge"></span>
-  </div>
+  <div class="sec-header"><h2>📈 Eficiencias</h2><span class="badge badge-or" id="efSucBadge"></span></div>
   <div class="hist-controls">
     <input type="month" id="efMonth" onchange="renderEficiencia()">
     <button class="btn btn-sec" onclick="document.getElementById('efMonth').value='';renderEficiencia()">Ver todos</button>
@@ -216,7 +221,7 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
   <div id="efContent"></div>
 </div>
 
-<!-- CAPTURAR (admin) -->
+<!-- CAPTURAR ADMIN -->
 <div class="page" id="pageCapturar">
   <div class="sec-header">
     <h2>Captura Administrador</h2>
@@ -253,7 +258,7 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
   <button class="btn btn-adm" onclick="saveAdmData()">💾 Guardar</button>
 </div>
 
-<!-- EFICIENCIAS (admin) -->
+<!-- EFICIENCIAS ADMIN -->
 <div class="page" id="pageEfAdmin">
   <div class="sec-header"><h2>📈 Eficiencias</h2></div>
   <div class="hist-controls">
@@ -316,7 +321,7 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
 
 <!-- PANEL ADMIN -->
 <div class="page" id="pageAdmin">
-  <div class="adm-header"><h2>👑 Panel Administrador</h2><p>Vista consolidada — Grupo LEM</p></div>
+  <div class="adm-header"><h2>👑 Panel Administrador</h2><p>Vista consolidada en tiempo real — Grupo LEM</p></div>
   <div class="action-bar"><button class="btn btn-adm" onclick="exportExcelGlobal()">📥 Excel Global</button></div>
   <div class="hist-controls">
     <input type="month" id="admFilterMonth" onchange="renderAdmin()">
@@ -329,7 +334,28 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
 <div class="toast" id="toast"></div>
 
 <script>
-// ── DATA ──────────────────────────────────────────────────────────────────────
+// ── FIREBASE ──────────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:"AIzaSyA78PQquCrnG6a0HaYOufrykl1MV8hv_O8",
+  authDomain:"gorditas-grupolem.firebaseapp.com",
+  databaseURL:"https://gorditas-grupolem-default-rtdb.firebaseio.com",
+  projectId:"gorditas-grupolem",
+  storageBucket:"gorditas-grupolem.firebasestorage.app",
+  messagingSenderId:"775258636510",
+  appId:"1:775258636510:web:ace1bf874d3ba46d68424f"
+});
+var db=firebase.database();
+
+// Connection status
+db.ref('.info/connected').on('value',function(snap){
+  var online=snap.val();
+  var badge=document.getElementById('connBadge');
+  var status=document.getElementById('connStatus');
+  if(badge)badge.innerHTML='<span class="conn-badge '+(online?'online':'offline')+'"></span>';
+  if(status)status.innerHTML=online?'🟢 Conectado en tiempo real':'🔴 Sin conexión';
+});
+
+// ── DEFAULT DATA ──────────────────────────────────────────────────────────────
 var DP=[
   {name:"Asado de Puerco",unit:"g",cat:"guiso",gpg:65,costo:112.75},
   {name:"Barbacoa",unit:"g",cat:"guiso",gpg:53,costo:250.54},
@@ -371,34 +397,96 @@ var DS=[
   {name:"Juventud",pin:"123",archived:false},{name:"Valles Vivar",pin:"123",archived:false},
   {name:"OXXO Majalca",pin:"123",archived:false}
 ];
+
 var PRODUCTS=[];
 var LOCS=["bano","refri","conge"];
 var LOC_LABELS=["Baño María","Refrigerador","Congelador"];
 var role=null,suc=null,admSuc=null,admDate=null;
+var CONFIG={adminPin:"201414",sucursales:DS,products:DP.map(function(p){return Object.assign({},p,{archived:false})})};
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-function getConfig(){
-  var s=localStorage.getItem('glem_config');
-  if(!s){
-    var d={adminPin:"201414",sucursales:DS,products:DP.map(function(p){return Object.assign({},p,{archived:false})})};
-    localStorage.setItem('glem_config',JSON.stringify(d));return d;
+// ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
+function fbKey(s){return s.replace(/[.\#\$\[\]\s]/g,'_')}
+
+// Load config from Firebase
+db.ref('config').on('value',function(snap){
+  var val=snap.val();
+  if(val){
+    CONFIG=val;
+    if(!CONFIG.products)CONFIG.products=DP.map(function(p){return Object.assign({},p,{archived:false})});
+  } else {
+    db.ref('config').set(CONFIG);
   }
-  var c=JSON.parse(s);
-  if(!c.products){c.products=DP.map(function(p){return Object.assign({},p,{archived:false})});localStorage.setItem('glem_config',JSON.stringify(c))}
-  return c;
-}
-function saveConfig(c){localStorage.setItem('glem_config',JSON.stringify(c))}
-function loadProducts(){PRODUCTS=getConfig().products.filter(function(p){return !p.archived})}
-function getActiveSuc(){return getConfig().sucursales.filter(function(s){return s&&s.name&&!s.archived})}
+  PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
+  populateSelects();
+});
 
-// ── STORAGE ───────────────────────────────────────────────────────────────────
-function sk(s){return 'glem_inv_'+s.replace(/\s+/g,'_')}
-function ak(s){return 'glem_adm_'+s.replace(/\s+/g,'_')}
-function getData(s){return JSON.parse(localStorage.getItem(sk(s))||'[]')}
-function saveData(s,d){localStorage.setItem(sk(s),JSON.stringify(d))}
-function getAdmData(s){return JSON.parse(localStorage.getItem(ak(s))||'{}')}
-function saveAdmRaw(s,d){localStorage.setItem(ak(s),JSON.stringify(d))}
-function getAdmDay(s,date){var d=getAdmData(s);return d[date]||{si:PRODUCTS.map(function(){return 0}),ent:PRODUCTS.map(function(){return 0}),dritz:PRODUCTS.map(function(){return 0})}}
+function saveConfigFB(){
+  db.ref('config').set(CONFIG);
+  PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
+}
+
+// Firebase data helpers
+function getInvRef(s){return db.ref('inventario/'+fbKey(s))}
+function getAdmRef(s){return db.ref('adm_data/'+fbKey(s))}
+
+function dateKey(d){return d.replace(/-/g,'')}
+function keyToDate(k){return k.substr(0,4)+'-'+k.substr(4,2)+'-'+k.substr(6,2)}
+
+// Cache
+var invCache={};
+var admCache={};
+
+// Listen to inventory data
+function listenInv(s){
+  getInvRef(s).on('value',function(snap){
+    invCache[s]=snap.val()||{};
+    if(role==='gerente'&&suc===s){
+      if(document.getElementById('pageHistory').classList.contains('active'))renderHistory();
+      if(document.getElementById('pageEficiencia').classList.contains('active'))renderEficiencia();
+      checkAlreadySaved();
+      updateEffLive();
+    }
+    if(role==='admin'){
+      if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
+    }
+  });
+}
+function listenAdm(s){
+  getAdmRef(s).on('value',function(snap){
+    admCache[s]=snap.val()||{};
+    if(role==='gerente'&&suc===s){
+      // Auto-refresh gerente screen
+      var today=todayStr();
+      var admDay=getAdmDay(s,today);
+      PRODUCTS.forEach(function(_,i){
+        var siEl=document.getElementById('si_'+i);
+        var entEl=document.getElementById('ent_'+i);
+        var dritzEl=document.getElementById('dritz_'+i);
+        if(siEl){
+          var prevSF=getPrevSF(s,today);
+          var admSI=admDay.si||[];
+          var hasAdmSI=admSI.some(function(v){return v>0});
+          siEl.textContent=fmt(hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0))||0;
+        }
+        if(entEl)entEl.textContent=admDay.ent?admDay.ent[i]||0:0;
+        if(dritzEl)dritzEl.textContent=admDay.dritz[i]||0;
+      });
+      recalcAll();
+    }
+  });
+}
+
+function getInvData(s){return invCache[s]||{}}
+function getAdmData(s){return admCache[s]||{}}
+function getAdmDay(s,date){
+  var d=getAdmData(s);
+  return d[dateKey(date)]||{si:PRODUCTS.map(function(){return 0}),ent:PRODUCTS.map(function(){return 0}),dritz:PRODUCTS.map(function(){return 0})};
+}
+function getPrevSF(s,today){
+  var data=getInvData(s);
+  var keys=Object.keys(data).filter(function(k){return keyToDate(k)<today}).sort(function(a,b){return b.localeCompare(a)});
+  return keys.length?data[keys[0]].saldoFinal:null;
+}
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
 function todayStr(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
@@ -410,20 +498,16 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 function openModal(id){document.getElementById(id).classList.add('open');setTimeout(function(){var i=document.querySelector('#'+id+' input');if(i)i.focus()},80)}
 function closeModal(id){document.getElementById(id).classList.remove('open');document.querySelectorAll('#'+id+' input').forEach(function(i){i.value=''});document.querySelectorAll('#'+id+' .pin-error').forEach(function(e){e.style.display='none'})}
 function toggleGpg(){document.getElementById('newProdGpg').style.display=document.getElementById('newProdCat').value==='bebida'?'none':''}
-function getPrevSF(s,today){
-  var data=getData(s).filter(function(r){return r.date<today}).sort(function(a,b){return b.date.localeCompare(a.date)});
-  return data.length?data[0].saldoFinal:null;
-}
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 function checkAdm(){
-  if(document.getElementById('admPin').value===getConfig().adminPin){closeModal('modalAdm');loginAs('admin',null)}
+  if(document.getElementById('admPin').value===CONFIG.adminPin){closeModal('modalAdm');loginAs('admin',null)}
   else document.getElementById('admPinErr').style.display='block';
 }
 function checkGer(){
   var s=document.getElementById('gerSuc').value;
   var p=document.getElementById('gerPin').value;
-  var f=getConfig().sucursales.find(function(x){return x&&x.name===s&&x.pin===p&&!x.archived});
+  var f=CONFIG.sucursales.find(function(x){return x&&x.name===s&&x.pin===p&&!x.archived});
   if(f){closeModal('modalGer');loginAs('gerente',f.name)}
   else document.getElementById('gerPinErr').style.display='block';
 }
@@ -431,11 +515,26 @@ function loginAs(r,s){
   role=r;suc=s;
   document.getElementById('nav').style.display='flex';
   document.getElementById('navBadge').textContent=r==='admin'?'👑 Administrador':'👔 '+s;
-  loadProducts();buildTabs();
-  if(r==='admin'){switchTab('pageAdmin','tabPanel');renderAdmin()}
-  else{switchTab('pageRegister','tabReg');buildRegTable();checkAlreadySaved()}
+  buildTabs();
+  if(r==='admin'){
+    // Listen to all sucursales
+    CONFIG.sucursales.filter(function(x){return x&&x.name&&!x.archived}).forEach(function(x){
+      listenInv(x.name);listenAdm(x.name);
+    });
+    switchTab('pageAdmin','tabPanel');renderAdmin();
+  } else {
+    listenInv(s);listenAdm(s);
+    switchTab('pageRegister','tabReg');
+    buildRegTable();checkAlreadySaved();
+  }
 }
-function logout(){role=null;suc=null;admSuc=null;admDate=null;document.getElementById('nav').style.display='none';document.getElementById('tabsBarEl').style.display='none';showPage('pageLogin')}
+function logout(){
+  role=null;suc=null;admSuc=null;admDate=null;
+  invCache={};admCache={};
+  document.getElementById('nav').style.display='none';
+  document.getElementById('tabsBarEl').style.display='none';
+  showPage('pageLogin');
+}
 function buildTabs(){
   document.getElementById('tabsBarEl').style.display='block';
   var el=document.getElementById('tabsEl');
@@ -445,7 +544,7 @@ function buildTabs(){
       '<button class="tab adm-tab" id="tabCapturar" onclick="switchTab(\'pageCapturar\',\'tabCapturar\');initAdmCapturar()">✏️ Capturar</button>'+
       '<button class="tab adm-tab" id="tabEfAdmin" onclick="switchTab(\'pageEfAdmin\',\'tabEfAdmin\');renderEfAdmin()">📈 Eficiencias</button>'+
       '<button class="tab adm-tab" id="tabAdmCfg" onclick="switchTab(\'pageAdministracion\',\'tabAdmCfg\');renderAdminConfig()">⚙️ Administración</button>';
-  }else{
+  } else {
     el.innerHTML=
       '<button class="tab active" id="tabReg" onclick="switchTab(\'pageRegister\',\'tabReg\')">📋 Registro</button>'+
       '<button class="tab" id="tabHist" onclick="switchTab(\'pageHistory\',\'tabHist\');renderHistory()">📅 Historial</button>'+
@@ -457,17 +556,17 @@ function switchTab(pid,tid){document.querySelectorAll('.tab').forEach(function(t
 
 // ── SELECTS ───────────────────────────────────────────────────────────────────
 function populateSelects(){
-  var active=getActiveSuc();
+  var active=(CONFIG.sucursales||[]).filter(function(s){return s&&s.name&&!s.archived});
   ['gerSuc','admFilterSuc','admSucSelect','efAdmSuc'].forEach(function(id){
     var sel=document.getElementById(id);if(!sel)return;
     while(sel.options.length>1)sel.remove(1);
     active.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent=s.name;sel.appendChild(o)});
   });
-  var pcs=document.getElementById('pinChangeSuc');
+  var pcs=document.getElementById('pinChangeSuc');if(!pcs)return;
   while(pcs.options.length>1)pcs.remove(1);
   active.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent='👔 '+s.name;pcs.appendChild(o)});
 }
-populateSelects();loadProducts();
+
 document.getElementById('admSucSelect').addEventListener('change',function(){admSuc=this.value});
 document.getElementById('efAdmSuc').addEventListener('change',renderEfAdmin);
 document.getElementById('efAdmMonth').addEventListener('change',renderEfAdmin);
@@ -486,24 +585,6 @@ function effHTML(c){
   function cell(x){return '<td style="padding:7px 10px;border:1px solid var(--bdr)">'+x+'</td>'}
   function row(arr){return '<tr>'+arr.map(cell).join('')+'</tr>'}
   return '<table style="width:100%;border-collapse:collapse;font-size:.82rem;background:var(--card);border-radius:10px;overflow:hidden;border:1px solid var(--bdr);margin-top:4px">'+
-    row(cats.map(function(c){return '<strong style="color:#2e7d32">Total '+labels[c]+' '+units[c]+' vendidos</strong>'}))+
-    row(cats.map(function(c){return '<span style="font-size:1rem;font-weight:700;color:var(--or)">'+fmt(parseFloat(c.toString()===c?0:0))+'</span>'})
-      .join('')===''?[]:cats.map(function(cat){return '<span style="font-size:1rem;font-weight:700;color:var(--or)">'+fmt(parseFloat(c[cat].vend.toFixed(3)))+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
-    row(cats.map(function(cat){return '<strong style="color:#1565c0">Total '+labels[cat]+' '+units[cat]+' Consumo</strong>'}))+
-    row(cats.map(function(cat){return '<span style="font-size:1rem;font-weight:700;color:#1565c0">'+fmt(parseFloat(c[cat].cons.toFixed(3)))+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
-    row(cats.map(function(cat){return '<strong style="color:#e65100">Diferencia '+labels[cat]+' '+units[cat]+'</strong>'}))+
-    row(cats.map(function(cat){var dif=parseFloat((c[cat].vend-c[cat].cons).toFixed(3));return '<span style="font-size:1rem;font-weight:700;color:'+(dif>=0?'var(--grn)':'var(--red)')+'">'+dif+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
-    row(cats.map(function(cat){return '<strong style="color:#6a1b9a">Eficiencia '+labels[cat]+'</strong>'}))+
-    row(cats.map(function(cat){var eff=c[cat].cons>0?Math.round((c[cat].vend/c[cat].cons)*100):null;return '<span style="font-size:1.3rem;font-weight:700;color:'+effColor(eff)+'">'+(eff!==null?eff+'%':'—')+'</span>'}))+
-  '</table>';
-}
-function effHTMLsafe(c){
-  var cats=['guiso','postre','bebida'];
-  var labels={guiso:'Guisos',postre:'Postres',bebida:'Bebidas'};
-  var units={guiso:'Kg',postre:'PZAS',bebida:'PZAS'};
-  function cell(x){return '<td style="padding:7px 10px;border:1px solid var(--bdr)">'+x+'</td>'}
-  function row(arr){return '<tr>'+arr.map(cell).join('')+'</tr>'}
-  return '<table style="width:100%;border-collapse:collapse;font-size:.82rem;background:var(--card);border-radius:10px;overflow:hidden;border:1px solid var(--bdr);margin-top:4px">'+
     row(cats.map(function(cat){return '<strong style="color:#2e7d32">Total '+labels[cat]+' '+units[cat]+' vendidos</strong>'}))+
     row(cats.map(function(cat){return '<span style="font-size:1rem;font-weight:700;color:var(--or)">'+fmt(parseFloat(c[cat].vend.toFixed(3)))+'</span> <span style="font-size:.72rem;color:var(--mut)">'+units[cat]+'</span>'}))+
     row(cats.map(function(cat){return '<strong style="color:#1565c0">Total '+labels[cat]+' '+units[cat]+' Consumo</strong>'}))+
@@ -515,13 +596,12 @@ function effHTMLsafe(c){
   '</table>';
 }
 
-// ── REGISTER TABLE (gerente) ──────────────────────────────────────────────────
+// ── REGISTER TABLE ────────────────────────────────────────────────────────────
 function buildRegTable(){
   var today=todayStr();
   document.getElementById('regSucBadge').textContent=suc;
   document.getElementById('regDate').textContent=fmtDate(today);
   var admDay=getAdmDay(suc,today);
-  // Saldo Inicial: si el admin capturó uno explícitamente usarlo, si no usar el SF del día anterior
   var prevSF=getPrevSF(suc,today);
   var admSI=admDay.si||[];
   var hasAdmSI=admSI.some(function(v){return v>0});
@@ -530,14 +610,12 @@ function buildRegTable(){
   var lastCat='';
   PRODUCTS.forEach(function(p,i){
     if(p.cat!==lastCat){lastCat=p.cat;var sep=document.createElement('tr');sep.innerHTML='<td colspan="12" style="background:var(--or);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[p.cat]+'</td>';tbody.appendChild(sep)}
-    // Admin SI tiene prioridad, luego SF día anterior
     var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
-    var entAdm=admDay.ent?admDay.ent[i]||0:0;
     var tr=document.createElement('tr');
     tr.innerHTML=
       '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
       '<td class="c-blue" id="si_'+i+'">'+(fmt(si)||0)+'</td>'+
-      '<td class="c-blue" id="ent_'+i+'">'+(entAdm||0)+'</td>'+
+      '<td class="c-blue" id="ent_'+i+'">'+(admDay.ent?admDay.ent[i]||0:0)+'</td>'+
       LOCS.map(function(l){return '<td class="c-yellow"><input class="qty" type="number" min="0" step="any" id="'+l+'_'+i+'" placeholder="0" oninput="calcRow('+i+')"></td>'}).join('')+
       '<td class="c-calc" id="sf_'+i+'">0</td>'+
       '<td class="c-calc" id="cr_'+i+'">0</td>'+
@@ -557,9 +635,7 @@ function calcRow(i){
   var si=num(document.getElementById('si_'+i).textContent);
   var ent=num(document.getElementById('ent_'+i).textContent);
   var lv=LOCS.map(function(l){return num(document.getElementById(l+'_'+i).value)});
-  // Saldo Final = Baño María + Refrigerador + Congelador (sin entrada)
   var sf=lv.reduce(function(a,b){return a+b},0);
-  // Consumo Real = (Saldo Inicial + Entrada) - Saldo Final
   var cr=(si+ent)-sf;
   document.getElementById('sf_'+i).textContent=fmt(sf);
   document.getElementById('cr_'+i).textContent=fmt(cr);
@@ -573,42 +649,20 @@ function recalcAll(){PRODUCTS.forEach(function(_,i){calcRow(i)})}
 function updateTotals(){
   ['si','ent'].concat(LOCS).concat(['sf','cr','dritz']).forEach(function(k){
     var t=0;
-    PRODUCTS.forEach(function(_,i){
-      var el=document.getElementById(k+'_'+i);if(!el)return;
-      t+=el.tagName==='INPUT'?num(el.value):num(el.textContent);
-    });
+    PRODUCTS.forEach(function(_,i){var el=document.getElementById(k+'_'+i);if(!el)return;t+=el.tagName==='INPUT'?num(el.value):num(el.textContent)});
     var tot=document.getElementById('tot_'+k);if(tot)tot.textContent=fmt(t);
   });
 }
 function updateEffLive(){
   var today=todayStr();
-  var saved=getData(suc).find(function(r){return r.date===today});
-  if(saved&&saved.eficiencia){document.getElementById('effGrid').innerHTML=effHTMLsafe(saved.eficiencia);return}
+  var data=getInvData(suc);
+  var rec=data[dateKey(today)];
+  if(rec&&rec.eficiencia){document.getElementById('effGrid').innerHTML=effHTML(rec.eficiencia);return}
   var admDay=getAdmDay(suc,today);
   var da=PRODUCTS.map(function(_,i){return admDay.dritz[i]||0});
   var ca=PRODUCTS.map(function(_,i){var el=document.getElementById('cr_'+i);return el?num(el.textContent):0});
-  document.getElementById('effGrid').innerHTML=effHTMLsafe(calcEff(da,ca));
+  document.getElementById('effGrid').innerHTML=effHTML(calcEff(da,ca));
 }
-
-// Refresh automático desde admin (botón del gerente)
-function refreshFromAdmin(){
-  var today=todayStr();
-  var admDay=getAdmDay(suc,today);
-  var prevSF=getPrevSF(suc,today);
-  var admSI=admDay.si||[];
-  var hasAdmSI=admSI.some(function(v){return v>0});
-  PRODUCTS.forEach(function(_,i){
-    var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
-    var siEl=document.getElementById('si_'+i);if(siEl)siEl.textContent=fmt(si)||0;
-    var entEl=document.getElementById('ent_'+i);if(entEl)entEl.textContent=admDay.ent?admDay.ent[i]||0:0;
-    var dritzEl=document.getElementById('dritz_'+i);if(dritzEl)dritzEl.textContent=admDay.dritz[i]||0;
-  });
-  recalcAll();
-  var saved=getData(suc).find(function(r){return r.date===today});
-  if(saved&&saved.eficiencia)document.getElementById('effGrid').innerHTML=effHTMLsafe(saved.eficiencia);
-  toast('🔃 Datos actualizados desde administrador');
-}
-
 function clearGerente(){
   PRODUCTS.forEach(function(_,i){
     LOCS.forEach(function(l){document.getElementById(l+'_'+i).value=''});
@@ -619,38 +673,29 @@ function clearGerente(){
   });
   updateTotals();updateEffLive();toast('Campos limpiados');
 }
-
 function checkAlreadySaved(){
-  var already=getData(suc).find(function(r){return r.date===todayStr()});
+  var data=getInvData(suc);
+  var already=data[dateKey(todayStr())];
   var btn=document.getElementById('saveDayBtn');
   if(already){btn.disabled=true;btn.textContent='✅ Registro de hoy ya guardado'}
   else{btn.disabled=false;btn.textContent='💾 Guardar Registro'}
 }
-
 function saveDay(){
   var today=todayStr();
-  if(getData(suc).find(function(r){return r.date===today})){toast('⚠️ Ya se registró el inventario de hoy');clearGerente();return}
+  var data=getInvData(suc);
+  if(data[dateKey(today)]){toast('⚠️ Ya se registró el inventario de hoy');clearGerente();return}
   var rows=PRODUCTS.map(function(_,i){
-    return{
-      ent:num(document.getElementById('ent_'+i).textContent),
-      locs:LOCS.map(function(l){return num(document.getElementById(l+'_'+i).value)})
-    };
+    return{ent:num(document.getElementById('ent_'+i).textContent),locs:LOCS.map(function(l){return num(document.getElementById(l+'_'+i).value)})};
   });
   if(!rows.some(function(r){return r.locs.some(function(v){return v>0})})){toast('⚠️ No hay datos para guardar');return}
-  var sf=PRODUCTS.map(function(_,i){
-    // Saldo Final = solo locs (sin entrada)
-    return LOCS.reduce(function(a,l){return a+num(document.getElementById(l+'_'+i).value)},0);
-  });
-  var cr=PRODUCTS.map(function(_,i){
-    // Consumo Real = (SI + Entrada) - SF
-    return (num(document.getElementById('si_'+i).textContent)+num(document.getElementById('ent_'+i).textContent))-sf[i];
-  });
-  var data=getData(suc);
-  data.unshift({date:today,rows:rows,saldoFinal:sf,consumoReal:cr});
-  saveData(suc,data);
-  clearGerente();
-  var btn=document.getElementById('saveDayBtn');btn.disabled=true;btn.textContent='✅ Registro de hoy ya guardado';
-  toast('✅ Registro guardado');
+  var sf=PRODUCTS.map(function(_,i){return LOCS.reduce(function(a,l){return a+num(document.getElementById(l+'_'+i).value)},0)});
+  var cr=PRODUCTS.map(function(_,i){return (num(document.getElementById('si_'+i).textContent)+num(document.getElementById('ent_'+i).textContent))-sf[i]});
+  var rec={date:today,rows:rows,saldoFinal:sf,consumoReal:cr,ts:Date.now()};
+  getInvRef(suc).child(dateKey(today)).set(rec).then(function(){
+    clearGerente();
+    var btn=document.getElementById('saveDayBtn');btn.disabled=true;btn.textContent='✅ Registro de hoy ya guardado';
+    toast('✅ Registro guardado en tiempo real');
+  }).catch(function(){toast('❌ Error al guardar. Verifica conexión')});
 }
 
 // ── ADMIN CAPTURAR ────────────────────────────────────────────────────────────
@@ -658,68 +703,60 @@ function initAdmCapturar(){
   var dp=document.getElementById('admDatePicker');
   if(!dp.value)dp.value=todayStr();
 }
-
 function loadAdmTable(){
   admSuc=document.getElementById('admSucSelect').value;
   admDate=document.getElementById('admDatePicker').value||todayStr();
   if(!admSuc){toast('⚠️ Selecciona una sucursal');return}
+  // Start listening if not already
+  if(!admCache[admSuc])listenAdm(admSuc);
+  if(!invCache[admSuc])listenInv(admSuc);
   document.getElementById('admRegSucBadge').textContent=admSuc;
   document.getElementById('admRegDate').textContent=fmtDate(admDate);
   var admDay=getAdmDay(admSuc,admDate);
   var prevSF=getPrevSF(admSuc,admDate);
+  var admSI=admDay.si||[];
+  var hasAdmSI=admSI.some(function(v){return v>0});
   var tbody=document.getElementById('admBody');tbody.innerHTML='';
   var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
   var lastCat='';
   PRODUCTS.forEach(function(p,i){
     if(p.cat!==lastCat){lastCat=p.cat;var sep=document.createElement('tr');sep.innerHTML='<td colspan="5" style="background:var(--adm);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[p.cat]+'</td>';tbody.appendChild(sep)}
-    var si=prevSF?prevSF[i]:(admDay.si[i]||0);
+    var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
     var tr=document.createElement('tr');
     tr.innerHTML=
       '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
       '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="a_si_'+i+'" value="'+(si||0)+'" placeholder="0"></td>'+
-      '<td class="c-yellow"><input class="qty adm-inp" type="number" min="0" step="any" id="a_ent_'+i+'" value="'+(admDay.ent?admDay.ent[i]||'':'') +'" placeholder="0"></td>'+
+      '<td class="c-yellow"><input class="qty adm-inp" type="number" min="0" step="any" id="a_ent_'+i+'" value="'+(admDay.ent?admDay.ent[i]||'':'')+'" placeholder="0"></td>'+
       '<td class="c-green"><input class="qty adm-inp" type="number" min="0" step="any" id="a_dritz_'+i+'" value="'+(admDay.dritz[i]||'')+'" placeholder="0"></td>';
     tbody.appendChild(tr);
   });
-  toast('✅ Tabla cargada para '+admSuc+' — '+fmtDate(admDate));
+  toast('✅ Tabla cargada — '+admSuc+' '+fmtDate(admDate));
 }
-
 function saveAdmData(){
   if(!admSuc||!admDate){toast('⚠️ Carga primero la tabla');return}
-  var d=getAdmData(admSuc);
   var si=PRODUCTS.map(function(_,i){var el=document.getElementById('a_si_'+i);return el?num(el.value):0});
   var ent=PRODUCTS.map(function(_,i){var el=document.getElementById('a_ent_'+i);return el?num(el.value):0});
   var dritz=PRODUCTS.map(function(_,i){var el=document.getElementById('a_dritz_'+i);return el?num(el.value):0});
-  d[admDate]={si:si,ent:ent,dritz:dritz};
-  saveAdmRaw(admSuc,d);
-  // Actualizar registro del gerente si existe
-  var invData=getData(admSuc);
-  var rec=invData.find(function(r){return r.date===admDate});
-  if(rec){
-    var prevSF=getPrevSF(admSuc,admDate);
-    // Saldo Final = locs sin entrada
-    rec.saldoFinal=PRODUCTS.map(function(_,i){
-      var locs=rec.rows[i]&&rec.rows[i].locs?rec.rows[i].locs:[0,0,0];
-      return locs.reduce(function(a,b){return a+b},0);
-    });
-    // Consumo Real = (SI + Entrada) - SF
-    rec.consumoReal=PRODUCTS.map(function(_,i){
-      var sv=hasAdmSI?(si[i]||0):(prevSF?prevSF[i]:0);
-      return (sv+ent[i])-rec.saldoFinal[i];
-    });
-    rec.diferencia=PRODUCTS.map(function(p,i){
-      var dg=dritz[i]?rec.consumoReal[i]-dritz[i]:null;
-      return{difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null};
-    });
-    rec.eficiencia=calcEff(dritz,rec.consumoReal);
-    saveData(admSuc,invData);
-    // Refrescar vistas admin
-    if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
-    if(document.getElementById('pageEfAdmin').classList.contains('active'))renderEfAdmin();
-    toast('✅ Guardado — reportes de '+admSuc+' actualizados');
-  }else{
-    toast('✅ Datos admin guardados para '+admSuc+' '+fmtDate(admDate));
-  }
+  var admRec={si:si,ent:ent,dritz:dritz,ts:Date.now()};
+  getAdmRef(admSuc).child(dateKey(admDate)).set(admRec).then(function(){
+    // Update inventory record if exists
+    var data=getInvData(admSuc);
+    var rec=data[dateKey(admDate)];
+    if(rec){
+      var prevSF=getPrevSF(admSuc,admDate);
+      var hasAdmSI=si.some(function(v){return v>0});
+      PRODUCTS.forEach(function(_,i){if(!rec.rows[i])rec.rows[i]={ent:0,locs:[0,0,0]};rec.rows[i].ent=ent[i]});
+      rec.saldoFinal=PRODUCTS.map(function(_,i){var locs=rec.rows[i].locs||[0,0,0];return locs.reduce(function(a,b){return a+b},0)});
+      rec.consumoReal=PRODUCTS.map(function(_,i){var sv=hasAdmSI?(si[i]||0):(prevSF?prevSF[i]:0);return (sv+ent[i])-rec.saldoFinal[i]});
+      rec.diferencia=PRODUCTS.map(function(p,i){var dg=dritz[i]?rec.consumoReal[i]-dritz[i]:null;return{difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null}});
+      rec.eficiencia=calcEff(dritz,rec.consumoReal);
+      getInvRef(admSuc).child(dateKey(admDate)).set(rec).then(function(){
+        toast('✅ Guardado y eficiencias actualizadas para '+admSuc);
+      });
+    } else {
+      toast('✅ Datos admin guardados para '+admSuc+' '+fmtDate(admDate));
+    }
+  }).catch(function(){toast('❌ Error al guardar')});
 }
 
 // ── PLANTILLAS ────────────────────────────────────────────────────────────────
@@ -738,19 +775,13 @@ function importExcel(input,tipo){
   var reader=new FileReader();
   reader.onload=function(e){
     try{
-      var data=new Uint8Array(e.target.result);
-      var wb=XLSX.read(data,{type:'array'});
-      var ws=wb.Sheets[wb.SheetNames[0]];
-      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      var map={};
-      rows.slice(1).forEach(function(row){var name=String(row[0]||'').trim();var val=parseFloat(row[1])||0;if(name)map[name]=val});
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+      var map={};rows.slice(1).forEach(function(row){var n=String(row[0]||'').trim();var v=parseFloat(row[1])||0;if(n)map[n]=v});
       var matched=0;
       PRODUCTS.forEach(function(p,i){
         var val=map[p.name];
-        if(val!==undefined){
-          var id=tipo==='si'?'a_si_'+i:tipo==='ent'?'a_ent_'+i:'a_dritz_'+i;
-          var el=document.getElementById(id);if(el){el.value=val;matched++}
-        }
+        if(val!==undefined){var id=tipo==='si'?'a_si_'+i:tipo==='ent'?'a_ent_'+i:'a_dritz_'+i;var el=document.getElementById(id);if(el){el.value=val;matched++}}
       });
       toast('✅ Importados '+matched+' productos');
     }catch(err){toast('❌ Error al leer el archivo')}
@@ -763,14 +794,14 @@ function importExcel(input,tipo){
 function renderHistory(){
   document.getElementById('histSucTitle').textContent=suc;
   var filter=document.getElementById('filterMonth').value;
-  var data=getData(suc);
-  if(filter)data=data.filter(function(r){return r.date.startsWith(filter)});
-  data.sort(function(a,b){return b.date.localeCompare(a.date)});
+  var data=getInvData(suc);
+  var recs=Object.values(data).filter(function(r){return r&&r.date});
+  if(filter)recs=recs.filter(function(r){return r.date.startsWith(filter)});
+  recs.sort(function(a,b){return b.date.localeCompare(a.date)});
   var el=document.getElementById('histList');
-  if(!data.length){el.innerHTML='<div class="empty-state">No hay registros.</div>';return}
-  el.innerHTML=data.map(function(rec){return buildHistEntry(rec,suc)}).join('');
+  if(!recs.length){el.innerHTML='<div class="empty-state">No hay registros.</div>';return}
+  el.innerHTML=recs.map(function(rec){return buildHistEntry(rec,suc)}).join('');
 }
-
 function buildHistEntry(rec,sucursal){
   var admDay=getAdmDay(sucursal,rec.date);
   var rows=PRODUCTS.map(function(p,i){
@@ -783,41 +814,36 @@ function buildHistEntry(rec,sucursal){
     var difG=difObj?difObj.difG:(dritz?cr-dritz:null);
     var dtg=difObj?difObj.dtg:(difG!==null?Math.round(difG/p.gpg):null);
     if(!sf&&!cr&&!lv.some(function(v){return v}))return '';
-    return '<tr>'+
-      '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
-      '<td>'+(admDay.si[i]||0)+'</td>'+
-      '<td>'+(ent)+'</td>'+
+    return '<tr><td>'+p.name+'</td><td>'+p.unit+'</td>'+
+      '<td>'+(admDay.si?admDay.si[i]||0:0)+'</td>'+
+      '<td>'+ent+'</td>'+
       lv.map(function(v){return '<td>'+(v||'')+'</td>'}).join('')+
-      '<td class="c-calc">'+fmt(sf)+'</td>'+
-      '<td class="c-calc">'+fmt(cr)+'</td>'+
+      '<td class="c-calc">'+fmt(sf)+'</td><td class="c-calc">'+fmt(cr)+'</td>'+
       '<td class="c-green">'+(dritz||'—')+'</td>'+
       '<td class="c-calc">'+(dtg!==null?dtg:'—')+'</td>'+
       '<td class="c-calc">'+(difG!==null?fmt(difG):'—')+'</td></tr>';
   }).filter(Boolean).join('');
   var totSF=fmt((rec.saldoFinal||[]).reduce(function(a,b){return a+b},0));
-  var effCats=rec.eficiencia||calcEff(PRODUCTS.map(function(_,i){return admDay.dritz[i]||0}),PRODUCTS.map(function(_,i){return rec.consumoReal?rec.consumoReal[i]||0:0}));
-  return '<div class="hist-entry">'+
-    '<div class="hist-hdr" onclick="toggleEntry(this)">'+
+  var effCats=rec.eficiencia||calcEff(PRODUCTS.map(function(_,i){return admDay.dritz?admDay.dritz[i]||0:0}),PRODUCTS.map(function(_,i){return rec.consumoReal?rec.consumoReal[i]||0:0}));
+  return '<div class="hist-entry"><div class="hist-hdr" onclick="toggleEntry(this)">'+
     '<h3>📅 '+fmtDate(rec.date)+'</h3>'+
     '<span style="font-size:.78rem;color:#5a3800;font-weight:700">SF: '+totSF+'</span></div>'+
-    '<div style="display:none">'+
-    '<div class="tbl-wrap" style="border-radius:0;border:none"><table style="min-width:600px">'+
+    '<div style="display:none"><div class="tbl-wrap" style="border-radius:0;border:none"><table style="min-width:600px">'+
     '<thead><tr><th>Producto</th><th>Unidad</th><th>S.Inicial</th><th>Entrada</th>'+
     LOC_LABELS.map(function(l){return '<th>'+l+'</th>'}).join('')+
     '<th>S.Final</th><th>C.Real</th><th>Dritzline</th><th>Df.Teórica</th><th>Diferencia(g)</th></tr></thead>'+
-    '<tbody>'+(rows||'<tr><td colspan="12" style="text-align:center;color:var(--mut)">Sin datos</td></tr>')+'</tbody>'+
-    '</table></div>'+
-    '<div style="padding:10px">'+effHTMLsafe(effCats)+'</div>'+
-    '</div></div>';
+    '<tbody>'+(rows||'<tr><td colspan="12" style="text-align:center;color:var(--mut)">Sin datos</td></tr>')+'</tbody></table></div>'+
+    '<div style="padding:10px">'+effHTML(effCats)+'</div></div></div>';
 }
 function toggleEntry(h){var b=h.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'}
 
 // ── EFICIENCIAS ───────────────────────────────────────────────────────────────
 function getEfData(sucursal,fm){
-  var data=getData(sucursal);
-  if(fm)data=data.filter(function(r){return r.date.startsWith(fm)});
-  data.sort(function(a,b){return a.date.localeCompare(b.date)});
-  return data.map(function(rec){
+  var data=getInvData(sucursal);
+  var recs=Object.values(data).filter(function(r){return r&&r.date});
+  if(fm)recs=recs.filter(function(r){return r.date.startsWith(fm)});
+  recs.sort(function(a,b){return a.date.localeCompare(b.date)});
+  return recs.map(function(rec){
     var admDay=getAdmDay(sucursal,rec.date);
     var eff=rec.eficiencia||calcEff(admDay.dritz||PRODUCTS.map(function(){return 0}),rec.consumoReal||PRODUCTS.map(function(){return 0}));
     var g=eff.guiso.cons>0?Math.round((eff.guiso.vend/eff.guiso.cons)*100):null;
@@ -850,28 +876,30 @@ function buildEfHTML(sucursal,fm){
     '<h3 style="font-size:.95rem;font-weight:700;color:var(--or);margin-bottom:10px">Detalle Diario</h3>'+detalle;
 }
 function renderEficiencia(){document.getElementById('efSucBadge').textContent=suc;document.getElementById('efContent').innerHTML=buildEfHTML(suc,document.getElementById('efMonth').value)}
-function renderEfAdmin(){var s=document.getElementById('efAdmSuc').value;var fm=document.getElementById('efAdmMonth').value;if(!s){document.getElementById('efAdmContent').innerHTML='<div class="empty-state">Selecciona una sucursal.</div>';return}document.getElementById('efAdmContent').innerHTML=buildEfHTML(s,fm)}
+function renderEfAdmin(){var s=document.getElementById('efAdmSuc').value;var fm=document.getElementById('efAdmMonth').value;if(!s){document.getElementById('efAdmContent').innerHTML='<div class="empty-state">Selecciona una sucursal.</div>';return}if(!invCache[s]){listenInv(s);listenAdm(s)}document.getElementById('efAdmContent').innerHTML=buildEfHTML(s,fm)}
 
 // ── ADMIN PANEL ───────────────────────────────────────────────────────────────
 function renderAdmin(){
   var fm=document.getElementById('admFilterMonth').value;
   var fs=document.getElementById('admFilterSuc').value;
-  var subs=getConfig().sucursales.filter(function(s){return s&&s.name&&!s.archived&&(fs?s.name===fs:true)});
+  var subs=(CONFIG.sucursales||[]).filter(function(s){return s&&s.name&&!s.archived&&(fs?s.name===fs:true)});
   var cards=subs.map(function(s){
-    var data=getData(s.name);
-    if(fm)data=data.filter(function(r){return r.date.startsWith(fm)});
-    var total=data.reduce(function(a,r){return a+(r.saldoFinal||[]).reduce(function(b,v){return b+v},0)},0);
-    var sorted=data.slice().sort(function(a,b){return b.date.localeCompare(a.date)});
+    var data=getInvData(s.name);
+    var recs=Object.values(data).filter(function(r){return r&&r.date});
+    if(fm)recs=recs.filter(function(r){return r.date.startsWith(fm)});
+    var total=recs.reduce(function(a,r){return a+(r.saldoFinal||[]).reduce(function(b,v){return b+v},0)},0);
+    var sorted=recs.slice().sort(function(a,b){return b.date.localeCompare(a.date)});
     var last=sorted.length?fmtDate(sorted[0].date):'Sin registros';
-    var key=s.name.replace(/\s+/g,'_');
-    return '<div class="suc-card" onclick="toggleSD(\'det_'+key+'\')"><h4>🏪 '+s.name+'</h4><div class="sc-stat">Último: '+last+'</div><div class="sc-total">'+fmt(total)+'</div><div class="sc-stat">'+data.length+' registro(s)</div></div>';
+    var key=fbKey(s.name);
+    return '<div class="suc-card" onclick="toggleSD(\'det_'+key+'\')"><h4>🏪 '+s.name+'</h4><div class="sc-stat">Último: '+last+'</div><div class="sc-total">'+fmt(total)+'</div><div class="sc-stat">'+recs.length+' registro(s)</div></div>';
   }).join('');
   var details=subs.map(function(s){
-    var data=getData(s.name);
-    if(fm)data=data.filter(function(r){return r.date.startsWith(fm)});
-    data.sort(function(a,b){return b.date.localeCompare(a.date)});
-    var key=s.name.replace(/\s+/g,'_');
-    return '<div id="det_'+key+'" style="display:none;margin-bottom:8px">'+(data.length?data.map(function(r){return buildHistEntry(r,s.name)}).join(''):'<div class="empty-state">Sin registros</div>')+'</div>';
+    var data=getInvData(s.name);
+    var recs=Object.values(data).filter(function(r){return r&&r.date});
+    if(fm)recs=recs.filter(function(r){return r.date.startsWith(fm)});
+    recs.sort(function(a,b){return b.date.localeCompare(a.date)});
+    var key=fbKey(s.name);
+    return '<div id="det_'+key+'" style="display:none;margin-bottom:8px">'+(recs.length?recs.map(function(r){return buildHistEntry(r,s.name)}).join(''):'<div class="empty-state">Sin registros</div>')+'</div>';
   }).join('');
   document.getElementById('adminContent').innerHTML='<div class="suc-grid">'+cards+'</div>'+details;
 }
@@ -879,62 +907,41 @@ function toggleSD(id){var e=document.getElementById(id);if(e)e.style.display=e.s
 
 // ── ADMINISTRACION ────────────────────────────────────────────────────────────
 function renderAdminConfig(){
-  var cfg=getConfig();
-  var aS=cfg.sucursales.filter(function(s){return s&&s.name&&!s.archived});
-  var arS=cfg.sucursales.filter(function(s){return s&&s.name&&s.archived});
-  var aP=cfg.products.filter(function(p){return !p.archived});
-  var arP=cfg.products.filter(function(p){return p.archived});
+  var aS=(CONFIG.sucursales||[]).filter(function(s){return s&&s.name&&!s.archived});
+  var arS=(CONFIG.sucursales||[]).filter(function(s){return s&&s.name&&s.archived});
+  var aP=(CONFIG.products||[]).filter(function(p){return !p.archived});
+  var arP=(CONFIG.products||[]).filter(function(p){return p.archived});
   var catIcon={guiso:'🥩',postre:'🍞',bebida:'🥤'};
-  var pcs=document.getElementById('pinChangeSuc');while(pcs.options.length>1)pcs.remove(1);
+  var pcs=document.getElementById('pinChangeSuc');if(!pcs)return;
+  while(pcs.options.length>1)pcs.remove(1);
   aS.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent='👔 '+s.name;pcs.appendChild(o)});
-  var sl=document.getElementById('sucursalesList');sl.innerHTML='';
-  aS.forEach(function(s){
-    var div=document.createElement('div');div.className='item-row';
-    div.innerHTML='<span style="font-weight:600">🏪 '+s.name+'</span><div style="display:flex;align-items:center;gap:8px"><span style="color:var(--mut);font-size:.8rem">PIN: '+'•'.repeat(s.pin.length)+'</span></div>';
-    var btn=document.createElement('button');btn.className='btn btn-sec';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='📦 Archivar';
-    btn.onclick=(function(name){return function(){archiveSuc(name)}})(s.name);
-    div.querySelector('div').appendChild(btn);sl.appendChild(div);
-  });
-  if(!aS.length)sl.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay sucursales activas.</p>';
-  var sa=document.getElementById('sucursalesArchivadas');sa.innerHTML='';
-  arS.forEach(function(s){
-    var div=document.createElement('div');div.className='item-row';div.style.opacity='.6';
-    div.innerHTML='<span style="font-weight:600">📦 '+s.name+'</span>';
-    var btn=document.createElement('button');btn.className='btn btn-grn';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='↩️ Restaurar';
-    btn.onclick=(function(name){return function(){restoreSuc(name)}})(s.name);
-    div.appendChild(btn);sa.appendChild(div);
-  });
-  if(!arS.length)sa.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay sucursales archivadas.</p>';
-  var pl=document.getElementById('productosList');pl.innerHTML='';
-  aP.forEach(function(p){
-    var costoLabel=p.cat==='guiso'?'$'+p.costo+'/Kg':'$'+p.costo+'/unidad';
-    var gpgLabel=p.cat!=='bebida'?' · '+p.gpg+'g/gordita':'';
-    var div=document.createElement('div');div.className='item-row';
-    div.innerHTML='<div><span style="font-weight:600">'+catIcon[p.cat]+' '+p.name+'</span><span style="color:var(--mut);font-size:.75rem;margin-left:8px">'+costoLabel+gpgLabel+'</span></div>';
-    var btn=document.createElement('button');btn.className='btn btn-sec';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='📦 Archivar';
-    btn.onclick=(function(name){return function(){archiveProduct(name)}})(p.name);
-    div.appendChild(btn);pl.appendChild(div);
-  });
-  if(!aP.length)pl.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay productos activos.</p>';
-  var pa=document.getElementById('productosArchivados');pa.innerHTML='';
-  arP.forEach(function(p){
-    var div=document.createElement('div');div.className='item-row';div.style.opacity='.6';
-    div.innerHTML='<span style="font-weight:600">📦 '+p.name+'</span>';
-    var btn=document.createElement('button');btn.className='btn btn-grn';btn.style.cssText='font-size:.75rem;padding:4px 10px';btn.textContent='↩️ Restaurar';
-    btn.onclick=(function(name){return function(){restoreProduct(name)}})(p.name);
-    div.appendChild(btn);pa.appendChild(div);
-  });
-  if(!arP.length)pa.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay productos archivados.</p>';
+  function makeList(el,items,archiveFn,restoreFn,isProduct){
+    el.innerHTML='';
+    if(!items.length){el.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay elementos.</p>';return}
+    items.forEach(function(item){
+      var div=document.createElement('div');div.className='item-row';
+      var label=isProduct?(catIcon[item.cat]||'')+' '+item.name+(item.cat==='guiso'?' ($'+item.costo+'/Kg)':' ($'+item.costo+'/unidad)'):'🏪 '+item.name+(item.pin?' (PIN: '+'•'.repeat(item.pin.length)+')':'');
+      div.innerHTML='<span style="font-weight:600">'+label+'</span>';
+      var btn=document.createElement('button');btn.className=archiveFn?'btn btn-sec':'btn btn-grn';
+      btn.style.cssText='font-size:.75rem;padding:4px 10px';
+      btn.textContent=archiveFn?'📦 Archivar':'↩️ Restaurar';
+      btn.onclick=(function(name){return function(){archiveFn?archiveFn(name):restoreFn(name)}})(item.name);
+      div.appendChild(btn);el.appendChild(div);
+    });
+  }
+  makeList(document.getElementById('sucursalesList'),aS,archiveSuc,null,false);
+  makeList(document.getElementById('sucursalesArchivadas'),arS,null,restoreSuc,false);
+  makeList(document.getElementById('productosList'),aP,archiveProduct,null,true);
+  makeList(document.getElementById('productosArchivados'),arP,null,restoreProduct,true);
 }
 function changePin(){
   var target=document.getElementById('pinChangeSuc').value;
   var newPin=document.getElementById('pinChangeVal').value.trim();
   var msg=document.getElementById('pinChangeMsg');
   if(!newPin||newPin.length<3){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ PIN debe tener al menos 3 caracteres';return}
-  var cfg=getConfig();
-  if(target==='__admin__')cfg.adminPin=newPin;
-  else{var s=cfg.sucursales.find(function(x){return x&&x.name===target});if(s)s.pin=newPin}
-  saveConfig(cfg);document.getElementById('pinChangeVal').value='';
+  if(target==='__admin__')CONFIG.adminPin=newPin;
+  else{var s=CONFIG.sucursales.find(function(x){return x&&x.name===target});if(s)s.pin=newPin}
+  saveConfigFB();document.getElementById('pinChangeVal').value='';
   msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='✅ PIN actualizado';
   setTimeout(function(){msg.style.display='none'},3000);
 }
@@ -943,15 +950,16 @@ function addSucursal(){
   var pin=document.getElementById('newSucPin').value.trim();
   var msg=document.getElementById('newSucMsg');
   if(!name||!pin){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ingresa nombre y PIN';return}
-  var cfg=getConfig();
-  if(cfg.sucursales.find(function(s){return s&&s.name&&s.name.toLowerCase()===name.toLowerCase()})){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ya existe';return}
-  cfg.sucursales.push({name:name,pin:pin,archived:false});saveConfig(cfg);
+  if(CONFIG.sucursales.find(function(s){return s&&s.name&&s.name.toLowerCase()===name.toLowerCase()})){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ya existe';return}
+  CONFIG.sucursales.push({name:name,pin:pin,archived:false});saveConfigFB();
   document.getElementById('newSucName').value='';document.getElementById('newSucPin').value='';
   msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='✅ Sucursal agregada';
-  setTimeout(function(){msg.style.display='none'},3000);renderAdminConfig();populateSelects();
+  setTimeout(function(){msg.style.display='none'},3000);
+  renderAdminConfig();populateSelects();
+  listenInv(name);listenAdm(name);
 }
-function archiveSuc(name){if(!confirm('¿Archivar "'+name+'"?'))return;var cfg=getConfig();var s=cfg.sucursales.find(function(x){return x&&x.name===name});if(s)s.archived=true;saveConfig(cfg);renderAdminConfig();populateSelects();toast('📦 Archivada')}
-function restoreSuc(name){var cfg=getConfig();var s=cfg.sucursales.find(function(x){return x&&x.name===name});if(s)s.archived=false;saveConfig(cfg);renderAdminConfig();populateSelects();toast('✅ Restaurada')}
+function archiveSuc(name){if(!confirm('¿Archivar "'+name+'"?'))return;var s=CONFIG.sucursales.find(function(x){return x&&x.name===name});if(s)s.archived=true;saveConfigFB();renderAdminConfig();populateSelects();toast('📦 Archivada')}
+function restoreSuc(name){var s=CONFIG.sucursales.find(function(x){return x&&x.name===name});if(s)s.archived=false;saveConfigFB();renderAdminConfig();populateSelects();toast('✅ Restaurada')}
 function addProduct(){
   var name=document.getElementById('newProdName').value.trim();
   var cat=document.getElementById('newProdCat').value;
@@ -960,48 +968,48 @@ function addProduct(){
   var unit=cat==='guiso'?'g':cat==='postre'?'PZA':'Botella';
   var msg=document.getElementById('newProdMsg');
   if(!name){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ingresa el nombre';return}
-  var cfg=getConfig();
-  if(cfg.products.find(function(p){return p.name.toLowerCase()===name.toLowerCase()})){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ya existe';return}
-  cfg.products.push({name:name,unit:unit,cat:cat,gpg:gpg,costo:costo,archived:false});
-  saveConfig(cfg);loadProducts();
+  if(CONFIG.products.find(function(p){return p.name.toLowerCase()===name.toLowerCase()})){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ Ya existe';return}
+  CONFIG.products.push({name:name,unit:unit,cat:cat,gpg:gpg,costo:costo,archived:false});
+  saveConfigFB();
   document.getElementById('newProdName').value='';document.getElementById('newProdCosto').value='';document.getElementById('newProdGpg').value='';
   msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='✅ Producto agregado';
   setTimeout(function(){msg.style.display='none'},3000);renderAdminConfig();
 }
-function archiveProduct(name){if(!confirm('¿Archivar "'+name+'"?'))return;var cfg=getConfig();var p=cfg.products.find(function(x){return x.name===name});if(p)p.archived=true;saveConfig(cfg);loadProducts();renderAdminConfig();toast('📦 Archivado')}
-function restoreProduct(name){var cfg=getConfig();var p=cfg.products.find(function(x){return x.name===name});if(p)p.archived=false;saveConfig(cfg);loadProducts();renderAdminConfig();toast('✅ Restaurado')}
+function archiveProduct(name){if(!confirm('¿Archivar "'+name+'"?'))return;var p=CONFIG.products.find(function(x){return x.name===name});if(p)p.archived=true;saveConfigFB();renderAdminConfig();toast('📦 Archivado')}
+function restoreProduct(name){var p=CONFIG.products.find(function(x){return x.name===name});if(p)p.archived=false;saveConfigFB();renderAdminConfig();toast('✅ Restaurado')}
 
 // ── EXPORT ────────────────────────────────────────────────────────────────────
-function buildExcelRows(sucursal,data){
+function buildExcelRows(sucursal,recs){
   var hdr=['Sucursal','Fecha','Producto','Unidad','Saldo Inicial','Entrada'].concat(LOC_LABELS).concat(['Saldo Final','Consumo Real','Dritzline','Df. Teórica','Diferencia (g)']);
   var rows=[hdr];
-  data.forEach(function(rec){
+  recs.forEach(function(rec){
     var admDay=getAdmDay(sucursal,rec.date);
     PRODUCTS.forEach(function(p,i){
       var lv=LOCS.map(function(_,j){return rec.rows&&rec.rows[i]&&rec.rows[i].locs?rec.rows[i].locs[j]||0:0});
       var sf=rec.saldoFinal?rec.saldoFinal[i]||0:0;
       var cr=rec.consumoReal?rec.consumoReal[i]||0:0;
       var ent=rec.rows&&rec.rows[i]?rec.rows[i].ent||0:0;
-      var dritz=admDay.dritz[i]||0;
+      var dritz=admDay.dritz?admDay.dritz[i]||0:0;
       var difObj=rec.diferencia?rec.diferencia[i]:null;
       var difG=difObj?difObj.difG:(dritz?cr-dritz:'');
       var dtg=difObj?difObj.dtg:(difG!==''?Math.round(difG/p.gpg):'');
-      rows.push([sucursal,fmtDate(rec.date),p.name,p.unit,admDay.si[i]||0,ent].concat(lv).concat([sf,cr,dritz,dtg,difG]));
+      rows.push([sucursal,fmtDate(rec.date),p.name,p.unit,admDay.si?admDay.si[i]||0:0,ent].concat(lv).concat([sf,cr,dritz,dtg,difG]));
     });
   });
   return rows;
 }
 function exportExcelSuc(){
-  var data=getData(suc).sort(function(a,b){return b.date.localeCompare(a.date)});
-  if(!data.length){toast('No hay datos');return}
-  writeExcel(buildExcelRows(suc,data),'inventario_'+suc+'_'+todayStr()+'.xlsx');toast('📥 Excel descargado');
+  var data=getInvData(suc);
+  var recs=Object.values(data).filter(function(r){return r&&r.date}).sort(function(a,b){return b.date.localeCompare(a.date)});
+  if(!recs.length){toast('No hay datos');return}
+  writeExcel(buildExcelRows(suc,recs),'inventario_'+suc+'_'+todayStr()+'.xlsx');toast('📥 Excel descargado');
 }
 function exportExcelGlobal(){
   var hdr=['Sucursal','Fecha','Producto','Unidad','Saldo Inicial','Entrada'].concat(LOC_LABELS).concat(['Saldo Final','Consumo Real','Dritzline','Df. Teórica','Diferencia (g)']);
   var all=[hdr];
-  getConfig().sucursales.filter(function(s){return s&&s.name&&!s.archived}).forEach(function(s){
-    var data=getData(s.name).sort(function(a,b){return b.date.localeCompare(a.date)});
-    if(data.length)buildExcelRows(s.name,data).slice(1).forEach(function(r){all.push(r)});
+  (CONFIG.sucursales||[]).filter(function(s){return s&&s.name&&!s.archived}).forEach(function(s){
+    var recs=Object.values(getInvData(s.name)).filter(function(r){return r&&r.date}).sort(function(a,b){return b.date.localeCompare(a.date)});
+    if(recs.length)buildExcelRows(s.name,recs).slice(1).forEach(function(r){all.push(r)});
   });
   if(all.length<=1){toast('No hay datos');return}
   writeExcel(all,'inventario_global_'+todayStr()+'.xlsx');toast('📥 Excel global descargado');
@@ -1010,16 +1018,6 @@ function writeExcel(rows,filename){
   var ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map(function(){return{wch:14}});
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventario');XLSX.writeFile(wb,filename);
 }
-
-// ── POLLING ───────────────────────────────────────────────────────────────────
-setInterval(function(){
-  if(role==='gerente'&&document.getElementById('pageRegister').classList.contains('active')){
-    var today=todayStr();
-    var saved=getData(suc).find(function(r){return r.date===today});
-    if(saved&&saved.eficiencia)document.getElementById('effGrid').innerHTML=effHTMLsafe(saved.eficiencia);
-  }
-  if(role==='gerente'&&document.getElementById('pageHistory').classList.contains('active'))renderHistory();
-},30000);
 </script>
 </body>
 </html>
