@@ -415,10 +415,10 @@ function attachConfigListener(){
     }
     PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
     populateSelects();
-    // If admin, ensure we're listening to all active sucursales (including new ones)
+    // If admin, ensure we're listening to all active sucursales (listenInv/Adm have own guards)
     if(role==='admin'){
       CONFIG.sucursales.filter(function(x){return x&&x.name&&!x.archived}).forEach(function(x){
-        if(!listeningSuc[x.name]){listenInv(x.name);listenAdm(x.name)}
+        listenInv(x.name);listenAdm(x.name);
       });
     }
     // Re-render active page if needed
@@ -432,6 +432,11 @@ function attachConfigListener(){
       if(document.getElementById('pageEficiencia').classList.contains('active'))renderEficiencia();
     }
   });
+}
+function detachConfigListener(){
+  if(!configListenerAttached)return;
+  db.ref('config').off();
+  configListenerAttached=false;
 }
 
 function saveConfigFB(){
@@ -460,6 +465,19 @@ function listenInv(s){
     if(role==='gerente'&&suc===s){
       if(document.getElementById('pageHistory').classList.contains('active'))renderHistory();
       if(document.getElementById('pageEficiencia').classList.contains('active'))renderEficiencia();
+      if(document.getElementById('pageRegister').classList.contains('active')){
+        // Refresh Saldo Inicial values now that we have prevSF data
+        var today=todayStr();
+        var admDay=getAdmDay(s,today);
+        var prevSF=getPrevSF(s,today);
+        var admSI=admDay.si||[];
+        var hasAdmSI=admSI.some(function(v){return v>0});
+        PRODUCTS.forEach(function(_,i){
+          var siEl=document.getElementById('si_'+i);
+          if(siEl)siEl.textContent=fmt(hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0))||0;
+        });
+        recalcAll();
+      }
       checkAlreadySaved();
       updateEffLive();
     }
@@ -502,6 +520,17 @@ function listenAdm(s){
       if(document.getElementById('pageEfAdmin').classList.contains('active'))renderEfAdmin();
     }
   });
+}
+// Cleanly detach all data listeners (called on logout / auth change)
+function detachAllListeners(){
+  Object.keys(listeningSuc).forEach(function(k){
+    if(/_inv$/.test(k)){var s=k.replace(/_inv$/,'');getInvRef(s).off()}
+    else if(/_adm$/.test(k)){var s=k.replace(/_adm$/,'');getAdmRef(s).off()}
+  });
+  detachConfigListener();
+  listeningSuc={};
+  invCache={};
+  admCache={};
 }
 
 function getInvData(s){return invCache[s]||{}}
@@ -564,7 +593,7 @@ auth.onAuthStateChanged(function(user){
     loginAs(info.role,info.suc);
   } else {
     role=null;suc=null;admSuc=null;admDate=null;
-    invCache={};admCache={};
+    detachAllListeners();
     var navEl=document.getElementById('nav');if(navEl)navEl.style.display='none';
     var tb=document.getElementById('tabsBarEl');if(tb)tb.style.display='none';
     showPage('pageLogin');
@@ -591,7 +620,7 @@ function loginAs(r,s){
 function logout(){
   auth.signOut().then(function(){
     role=null;suc=null;admSuc=null;admDate=null;
-    invCache={};admCache={};
+    detachAllListeners();
     document.getElementById('nav').style.display='none';
     document.getElementById('tabsBarEl').style.display='none';
     showPage('pageLogin');
@@ -620,14 +649,11 @@ function switchTab(pid,tid){document.querySelectorAll('.tab').forEach(function(t
 // ── SELECTS ───────────────────────────────────────────────────────────────────
 function populateSelects(){
   var active=(CONFIG.sucursales||[]).filter(function(s){return s&&s.name&&!s.archived});
-  ['gerSuc','admFilterSuc','admSucSelect','efAdmSuc'].forEach(function(id){
+  ['admFilterSuc','admSucSelect','efAdmSuc'].forEach(function(id){
     var sel=document.getElementById(id);if(!sel)return;
     while(sel.options.length>1)sel.remove(1);
     active.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent=s.name;sel.appendChild(o)});
   });
-  var pcs=document.getElementById('pinChangeSuc');if(!pcs)return;
-  while(pcs.options.length>1)pcs.remove(1);
-  active.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent='👔 '+s.name;pcs.appendChild(o)});
 }
 
 document.getElementById('admSucSelect').addEventListener('change',function(){admSuc=this.value});
@@ -991,15 +1017,13 @@ function renderAdminConfig(){
   var aP=(CONFIG.products||[]).filter(function(p){return !p.archived});
   var arP=(CONFIG.products||[]).filter(function(p){return p.archived});
   var catIcon={guiso:'🥩',postre:'🍞',bebida:'🥤'};
-  var pcs=document.getElementById('pinChangeSuc');if(!pcs)return;
-  while(pcs.options.length>1)pcs.remove(1);
-  aS.forEach(function(s){var o=document.createElement('option');o.value=s.name;o.textContent='👔 '+s.name;pcs.appendChild(o)});
   function makeList(el,items,archiveFn,restoreFn,isProduct){
+    if(!el)return;
     el.innerHTML='';
     if(!items.length){el.innerHTML='<p style="color:var(--mut);font-size:.85rem">No hay elementos.</p>';return}
     items.forEach(function(item){
       var div=document.createElement('div');div.className='item-row';
-      var label=isProduct?(catIcon[item.cat]||'')+' '+item.name+(item.cat==='guiso'?' ($'+item.costo+'/Kg)':' ($'+item.costo+'/unidad)'):'🏪 '+item.name+(item.pin?' (PIN: '+'•'.repeat(item.pin.length)+')':'');
+      var label=isProduct?(catIcon[item.cat]||'')+' '+item.name+(item.cat==='guiso'?' ($'+item.costo+'/Kg)':' ($'+item.costo+'/unidad)'):'🏪 '+item.name;
       div.innerHTML='<span style="font-weight:600">'+label+'</span>';
       var btn=document.createElement('button');btn.className=archiveFn?'btn btn-sec':'btn btn-grn';
       btn.style.cssText='font-size:.75rem;padding:4px 10px';
@@ -1012,17 +1036,6 @@ function renderAdminConfig(){
   makeList(document.getElementById('sucursalesArchivadas'),arS,null,restoreSuc,false);
   makeList(document.getElementById('productosList'),aP,archiveProduct,null,true);
   makeList(document.getElementById('productosArchivados'),arP,null,restoreProduct,true);
-}
-function changePin(){
-  var target=document.getElementById('pinChangeSuc').value;
-  var newPin=document.getElementById('pinChangeVal').value.trim();
-  var msg=document.getElementById('pinChangeMsg');
-  if(!newPin||newPin.length<3){msg.style.display='block';msg.style.color='var(--red)';msg.textContent='⚠️ PIN debe tener al menos 3 caracteres';return}
-  if(target==='__admin__')CONFIG.adminPin=newPin;
-  else{var s=CONFIG.sucursales.find(function(x){return x&&x.name===target});if(s)s.pin=newPin}
-  saveConfigFB();document.getElementById('pinChangeVal').value='';
-  msg.style.display='block';msg.style.color='var(--grn)';msg.textContent='✅ PIN actualizado';
-  setTimeout(function(){msg.style.display='none'},3000);
 }
 function addSucursal(){
   var name=document.getElementById('newSucName').value.trim();
