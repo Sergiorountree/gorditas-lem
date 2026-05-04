@@ -398,18 +398,30 @@ var CONFIG={adminPin:"201414",sucursales:DS,products:DP.map(function(p){return O
 // ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
 function fbKey(s){return s.replace(/[.\#\$\[\]\s]/g,'_')}
 
-// Load config from Firebase
-db.ref('config').on('value',function(snap){
-  var val=snap.val();
-  if(val){
-    CONFIG=val;
-    if(!CONFIG.products)CONFIG.products=DP.map(function(p){return Object.assign({},p,{archived:false})});
-  } else {
-    db.ref('config').set(CONFIG);
-  }
-  PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
-  populateSelects();
-});
+// Load config from Firebase (will only succeed after authentication)
+var configListenerAttached=false;
+function attachConfigListener(){
+  if(configListenerAttached)return;
+  configListenerAttached=true;
+  db.ref('config').on('value',function(snap){
+    var val=snap.val();
+    if(val){
+      CONFIG=val;
+      if(!CONFIG.products)CONFIG.products=DP.map(function(p){return Object.assign({},p,{archived:false})});
+    } else {
+      db.ref('config').set(CONFIG);
+    }
+    PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
+    populateSelects();
+    // Re-render active page if needed
+    if(role==='admin'){
+      if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
+      if(document.getElementById('pageEfAdmin').classList.contains('active'))renderEfAdmin();
+    } else if(role==='gerente'&&suc){
+      if(document.getElementById('pageRegister').classList.contains('active'))buildRegTable();
+    }
+  });
+}
 
 function saveConfigFB(){
   db.ref('config').set(CONFIG);
@@ -522,6 +534,8 @@ auth.onAuthStateChanged(function(user){
       if(errEl){errEl.style.display='block';errEl.textContent='⚠️ Correo no autorizado en el sistema'}
       return;
     }
+    // Now that we have auth, attach config listener
+    attachConfigListener();
     loginAs(info.role,info.suc);
   } else {
     role=null;suc=null;admSuc=null;admDate=null;
@@ -536,6 +550,7 @@ function loginAs(r,s){
   document.getElementById('nav').style.display='flex';
   document.getElementById('navBadge').textContent=r==='admin'?'👑 Administrador':'👔 '+s;
   buildTabs();
+  populateSelects();
   if(r==='admin'){
     // Listen to all sucursales
     CONFIG.sucursales.filter(function(x){return x&&x.name&&!x.archived}).forEach(function(x){
@@ -563,9 +578,9 @@ function buildTabs(){
   var el=document.getElementById('tabsEl');
   if(role==='admin'){
     el.innerHTML=
-      '<button class="tab adm-tab active" id="tabPanel" onclick="switchTab(\'pageAdmin\',\'tabPanel\');renderAdmin()">📊 Panel</button>'+
-      '<button class="tab adm-tab" id="tabCapturar" onclick="switchTab(\'pageCapturar\',\'tabCapturar\');initAdmCapturar()">✏️ Capturar</button>'+
-      '<button class="tab adm-tab" id="tabEfAdmin" onclick="switchTab(\'pageEfAdmin\',\'tabEfAdmin\');renderEfAdmin()">📈 Eficiencias</button>'+
+      '<button class="tab adm-tab active" id="tabPanel" onclick="switchTab(\'pageAdmin\',\'tabPanel\');populateSelects();renderAdmin()">📊 Panel</button>'+
+      '<button class="tab adm-tab" id="tabCapturar" onclick="switchTab(\'pageCapturar\',\'tabCapturar\');populateSelects();initAdmCapturar()">✏️ Capturar</button>'+
+      '<button class="tab adm-tab" id="tabEfAdmin" onclick="switchTab(\'pageEfAdmin\',\'tabEfAdmin\');populateSelects();renderEfAdmin()">📈 Eficiencias</button>'+
       '<button class="tab adm-tab" id="tabAdmCfg" onclick="switchTab(\'pageAdministracion\',\'tabAdmCfg\');renderAdminConfig()">⚙️ Administración</button>';
   } else {
     el.innerHTML=
