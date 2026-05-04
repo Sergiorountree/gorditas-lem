@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--or:#e07b00;--orl:#f9a825;--bg:#fff8f0;--card:#fff;--bdr:#f0d9b5;--txt:#2d1a00;--mut:#888;--red:#c0392b;--grn:#27ae60;--adm:#4a148c}
@@ -122,39 +123,12 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
       <h2>Grupo LEM — Gorditas</h2>
       <p>Sistema de Inventario Diario</p>
       <div class="conn-status" id="connStatus">⏳ Conectando...</div>
-      <div class="role-btns">
-        <button class="role-btn adm" onclick="openModal('modalAdm')">👑 Administrador</button>
-        <button class="role-btn ger" onclick="openModal('modalGer')">👔 Gerente de Sucursal</button>
+      <div style="display:flex;flex-direction:column;gap:11px;margin-top:6px">
+        <input type="email" id="loginEmail" placeholder="Correo electrónico" autocomplete="username" style="padding:11px;border-radius:8px;border:1px solid var(--bdr);font-size:.95rem;width:100%">
+        <input type="password" id="loginPassword" placeholder="Contraseña" autocomplete="current-password" style="padding:11px;border-radius:8px;border:1px solid var(--bdr);font-size:.95rem;width:100%" onkeydown="if(event.key==='Enter')doLogin()">
+        <p id="loginError" style="color:var(--red);font-size:.82rem;display:none;margin:0">Correo o contraseña incorrectos</p>
+        <button class="btn btn-or" id="loginBtn" style="width:100%;padding:13px;font-size:.95rem" onclick="doLogin()">Entrar</button>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL ADMIN -->
-<div class="modal-overlay" id="modalAdm">
-  <div class="modal">
-    <h3>👑 Administrador</h3>
-    <p>Ingresa el PIN de administrador</p>
-    <input type="password" id="admPin" maxlength="8" placeholder="••••••" onkeydown="if(event.key==='Enter')checkAdm()">
-    <p class="pin-error" id="admPinErr">PIN incorrecto</p>
-    <div class="btn-row">
-      <button class="btn btn-sec" style="flex:1" onclick="closeModal('modalAdm')">Cancelar</button>
-      <button class="btn btn-adm" style="flex:1" onclick="checkAdm()">Entrar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL GERENTE -->
-<div class="modal-overlay" id="modalGer">
-  <div class="modal">
-    <h3>👔 Gerente</h3>
-    <p>Selecciona tu sucursal e ingresa tu PIN</p>
-    <select id="gerSuc"><option value="">-- Selecciona sucursal --</option></select>
-    <input type="password" id="gerPin" maxlength="8" placeholder="Tu PIN" onkeydown="if(event.key==='Enter')checkGer()">
-    <p class="pin-error" id="gerPinErr">PIN incorrecto o sucursal no seleccionada</p>
-    <div class="btn-row">
-      <button class="btn btn-sec" style="flex:1" onclick="closeModal('modalGer')">Cancelar</button>
-      <button class="btn btn-or" style="flex:1" onclick="checkGer()">Entrar</button>
     </div>
   </div>
 </div>
@@ -273,23 +247,23 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
 
 <!-- ADMINISTRACION -->
 <div class="page" id="pageAdministracion">
-  <div class="adm-header"><h2>⚙️ Administración</h2><p>Gestión de sucursales, productos y contraseñas</p></div>
-  <div class="cfg-box">
-    <h3>🔑 Cambiar PINs</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;margin-bottom:10px">
-      <select id="pinChangeSuc" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem;background:#fff">
-        <option value="__admin__">👑 Administrador</option>
-      </select>
-      <input type="password" id="pinChangeVal" maxlength="8" placeholder="Nuevo PIN" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
-      <button class="btn btn-adm" onclick="changePin()">Guardar</button>
-    </div>
-    <p id="pinChangeMsg" style="font-size:.8rem;display:none"></p>
+  <div class="adm-header"><h2>⚙️ Administración</h2><p>Gestión de sucursales, productos y usuarios</p></div>
+  <div class="cfg-box" style="background:#fff3e0;border-color:#ffb74d">
+    <h3>🔑 Contraseñas de Acceso</h3>
+    <p style="font-size:.85rem;color:#5d4037;line-height:1.5">Las contraseñas de los gerentes y administrador ahora se gestionan directamente en <strong>Firebase Authentication</strong>.<br><br>Para cambiar una contraseña o crear un nuevo usuario:</p>
+    <ol style="font-size:.85rem;color:#5d4037;margin-top:8px;padding-left:22px;line-height:1.6">
+      <li>Entra a <strong>console.firebase.google.com</strong></li>
+      <li>Selecciona el proyecto <strong>gorditas-grupolem</strong></li>
+      <li>Ve a <strong>Authentication → Users</strong></li>
+      <li>Click en los 3 puntos (⋮) del usuario → <strong>Restablecer contraseña</strong> o crea uno nuevo</li>
+    </ol>
   </div>
   <div class="cfg-box">
     <h3>🏪 Nueva Sucursal</h3>
+    <p style="font-size:.78rem;color:var(--mut);background:#fff3e0;padding:7px 10px;border-radius:6px;margin-bottom:10px;border-left:3px solid var(--or)">⚠️ Después de agregar la sucursal aquí, también debes crear el usuario en Firebase Authentication y avisarme para actualizar el código con el nuevo correo.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center">
       <input type="text" id="newSucName" placeholder="Nombre" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
-      <input type="text" id="newSucPin" maxlength="8" placeholder="PIN" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
+      <input type="text" id="newSucPin" maxlength="8" placeholder="PIN (no se usa)" style="padding:8px;border-radius:8px;border:1px solid var(--bdr);font-size:.88rem">
       <button class="btn btn-or" onclick="addSucursal()">Agregar</button>
     </div>
     <p id="newSucMsg" style="font-size:.8rem;margin-top:8px;display:none"></p>
@@ -345,6 +319,23 @@ firebase.initializeApp({
   appId:"1:775258636510:web:ace1bf874d3ba46d68424f"
 });
 var db=firebase.database();
+var auth=firebase.auth();
+
+// Email → rol/sucursal mapping
+var EMAIL_MAP={
+  'admin@grupolem.com':{role:'admin',suc:null},
+  'bosques@grupolem.com':{role:'gerente',suc:'Bosques'},
+  'anthonyquinn@grupolem.com':{role:'gerente',suc:'Anthony Quinn'},
+  'miplaza@grupolem.com':{role:'gerente',suc:'Mi Plaza'},
+  'fuentesmares@grupolem.com':{role:'gerente',suc:'Fuentes Mares'},
+  'vallarta@grupolem.com':{role:'gerente',suc:'Vallarta'},
+  'sacramento@grupolem.com':{role:'gerente',suc:'Sacramento'},
+  'fashionmall@grupolem.com':{role:'gerente',suc:'Fashion Mall'},
+  'sendero@grupolem.com':{role:'gerente',suc:'Sendero'},
+  'juventud@grupolem.com':{role:'gerente',suc:'Juventud'},
+  'vallesvivar@grupolem.com':{role:'gerente',suc:'Valles Vivar'},
+  'oxxomajalca@grupolem.com':{role:'gerente',suc:'OXXO Majalca'}
+};
 
 // Connection status
 db.ref('.info/connected').on('value',function(snap){
@@ -500,17 +491,46 @@ function closeModal(id){document.getElementById(id).classList.remove('open');doc
 function toggleGpg(){document.getElementById('newProdGpg').style.display=document.getElementById('newProdCat').value==='bebida'?'none':''}
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
-function checkAdm(){
-  if(document.getElementById('admPin').value===CONFIG.adminPin){closeModal('modalAdm');loginAs('admin',null)}
-  else document.getElementById('admPinErr').style.display='block';
+function doLogin(){
+  var email=document.getElementById('loginEmail').value.trim().toLowerCase();
+  var pwd=document.getElementById('loginPassword').value;
+  var errEl=document.getElementById('loginError');
+  var btn=document.getElementById('loginBtn');
+  if(!email||!pwd){errEl.textContent='⚠️ Ingresa correo y contraseña';errEl.style.display='block';return}
+  errEl.style.display='none';btn.disabled=true;btn.textContent='Entrando...';
+  auth.signInWithEmailAndPassword(email,pwd).then(function(cred){
+    // onAuthStateChanged se encarga de loginAs
+    document.getElementById('loginPassword').value='';
+  }).catch(function(err){
+    btn.disabled=false;btn.textContent='Entrar';
+    errEl.style.display='block';
+    if(err.code==='auth/invalid-email')errEl.textContent='⚠️ Correo inválido';
+    else if(err.code==='auth/user-not-found'||err.code==='auth/wrong-password'||err.code==='auth/invalid-credential')errEl.textContent='⚠️ Correo o contraseña incorrectos';
+    else if(err.code==='auth/too-many-requests')errEl.textContent='⚠️ Demasiados intentos. Espera un momento';
+    else if(err.code==='auth/network-request-failed')errEl.textContent='⚠️ Sin conexión a internet';
+    else errEl.textContent='⚠️ '+err.message;
+  });
 }
-function checkGer(){
-  var s=document.getElementById('gerSuc').value;
-  var p=document.getElementById('gerPin').value;
-  var f=CONFIG.sucursales.find(function(x){return x&&x.name===s&&x.pin===p&&!x.archived});
-  if(f){closeModal('modalGer');loginAs('gerente',f.name)}
-  else document.getElementById('gerPinErr').style.display='block';
-}
+// Listen to auth state on page load
+auth.onAuthStateChanged(function(user){
+  var btn=document.getElementById('loginBtn');if(btn){btn.disabled=false;btn.textContent='Entrar'}
+  if(user){
+    var info=EMAIL_MAP[(user.email||'').toLowerCase()];
+    if(!info){
+      auth.signOut();
+      var errEl=document.getElementById('loginError');
+      if(errEl){errEl.style.display='block';errEl.textContent='⚠️ Correo no autorizado en el sistema'}
+      return;
+    }
+    loginAs(info.role,info.suc);
+  } else {
+    role=null;suc=null;admSuc=null;admDate=null;
+    invCache={};admCache={};
+    var navEl=document.getElementById('nav');if(navEl)navEl.style.display='none';
+    var tb=document.getElementById('tabsBarEl');if(tb)tb.style.display='none';
+    showPage('pageLogin');
+  }
+});
 function loginAs(r,s){
   role=r;suc=s;
   document.getElementById('nav').style.display='flex';
@@ -529,11 +549,14 @@ function loginAs(r,s){
   }
 }
 function logout(){
-  role=null;suc=null;admSuc=null;admDate=null;
-  invCache={};admCache={};
-  document.getElementById('nav').style.display='none';
-  document.getElementById('tabsBarEl').style.display='none';
-  showPage('pageLogin');
+  auth.signOut().then(function(){
+    role=null;suc=null;admSuc=null;admDate=null;
+    invCache={};admCache={};
+    document.getElementById('nav').style.display='none';
+    document.getElementById('tabsBarEl').style.display='none';
+    showPage('pageLogin');
+    toast('👋 Sesión cerrada');
+  });
 }
 function buildTabs(){
   document.getElementById('tabsBarEl').style.display='block';
