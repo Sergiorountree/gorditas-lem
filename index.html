@@ -389,7 +389,7 @@ var DS=[
   {name:"OXXO Majalca",pin:"123",archived:false}
 ];
 
-var PRODUCTS=[];
+var PRODUCTS=DP.map(function(p){return Object.assign({},p,{archived:false})}).filter(function(p){return !p.archived});
 var LOCS=["bano","refri","conge"];
 var LOC_LABELS=["Baño María","Refrigerador","Congelador"];
 var role=null,suc=null,admSuc=null,admDate=null;
@@ -400,6 +400,7 @@ function fbKey(s){return s.replace(/[.\#\$\[\]\s]/g,'_')}
 
 // Load config from Firebase (will only succeed after authentication)
 var configListenerAttached=false;
+var listeningSuc={}; // tracks which sucursales we're already listening to
 function attachConfigListener(){
   if(configListenerAttached)return;
   configListenerAttached=true;
@@ -408,17 +409,27 @@ function attachConfigListener(){
     if(val){
       CONFIG=val;
       if(!CONFIG.products)CONFIG.products=DP.map(function(p){return Object.assign({},p,{archived:false})});
+      if(!CONFIG.sucursales)CONFIG.sucursales=DS;
     } else {
       db.ref('config').set(CONFIG);
     }
     PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
     populateSelects();
+    // If admin, ensure we're listening to all active sucursales (including new ones)
+    if(role==='admin'){
+      CONFIG.sucursales.filter(function(x){return x&&x.name&&!x.archived}).forEach(function(x){
+        if(!listeningSuc[x.name]){listenInv(x.name);listenAdm(x.name)}
+      });
+    }
     // Re-render active page if needed
     if(role==='admin'){
       if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
       if(document.getElementById('pageEfAdmin').classList.contains('active'))renderEfAdmin();
+      if(document.getElementById('pageAdministracion').classList.contains('active'))renderAdminConfig();
     } else if(role==='gerente'&&suc){
       if(document.getElementById('pageRegister').classList.contains('active'))buildRegTable();
+      if(document.getElementById('pageHistory').classList.contains('active'))renderHistory();
+      if(document.getElementById('pageEficiencia').classList.contains('active'))renderEficiencia();
     }
   });
 }
@@ -441,6 +452,9 @@ var admCache={};
 
 // Listen to inventory data
 function listenInv(s){
+  if(listeningSuc[s+'_inv'])return;
+  listeningSuc[s+'_inv']=true;
+  listeningSuc[s]=true;
   getInvRef(s).on('value',function(snap){
     invCache[s]=snap.val()||{};
     if(role==='gerente'&&suc===s){
@@ -451,30 +465,41 @@ function listenInv(s){
     }
     if(role==='admin'){
       if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
+      if(document.getElementById('pageEfAdmin').classList.contains('active'))renderEfAdmin();
     }
   });
 }
 function listenAdm(s){
+  if(listeningSuc[s+'_adm'])return;
+  listeningSuc[s+'_adm']=true;
   getAdmRef(s).on('value',function(snap){
     admCache[s]=snap.val()||{};
     if(role==='gerente'&&suc===s){
-      // Auto-refresh gerente screen
-      var today=todayStr();
-      var admDay=getAdmDay(s,today);
-      PRODUCTS.forEach(function(_,i){
-        var siEl=document.getElementById('si_'+i);
-        var entEl=document.getElementById('ent_'+i);
-        var dritzEl=document.getElementById('dritz_'+i);
-        if(siEl){
-          var prevSF=getPrevSF(s,today);
-          var admSI=admDay.si||[];
-          var hasAdmSI=admSI.some(function(v){return v>0});
-          siEl.textContent=fmt(hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0))||0;
-        }
-        if(entEl)entEl.textContent=admDay.ent?admDay.ent[i]||0:0;
-        if(dritzEl)dritzEl.textContent=admDay.dritz[i]||0;
-      });
-      recalcAll();
+      // Auto-refresh gerente screen if on Register page
+      if(document.getElementById('pageRegister').classList.contains('active')){
+        var today=todayStr();
+        var admDay=getAdmDay(s,today);
+        PRODUCTS.forEach(function(_,i){
+          var siEl=document.getElementById('si_'+i);
+          var entEl=document.getElementById('ent_'+i);
+          var dritzEl=document.getElementById('dritz_'+i);
+          if(siEl){
+            var prevSF=getPrevSF(s,today);
+            var admSI=admDay.si||[];
+            var hasAdmSI=admSI.some(function(v){return v>0});
+            siEl.textContent=fmt(hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0))||0;
+          }
+          if(entEl)entEl.textContent=admDay.ent?admDay.ent[i]||0:0;
+          if(dritzEl)dritzEl.textContent=admDay.dritz[i]||0;
+        });
+        recalcAll();
+      }
+      if(document.getElementById('pageHistory').classList.contains('active'))renderHistory();
+      if(document.getElementById('pageEficiencia').classList.contains('active'))renderEficiencia();
+    }
+    if(role==='admin'){
+      if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
+      if(document.getElementById('pageEfAdmin').classList.contains('active'))renderEfAdmin();
     }
   });
 }
@@ -645,22 +670,30 @@ function buildRegTable(){
   var hasAdmSI=admSI.some(function(v){return v>0});
   var tbody=document.getElementById('regBody');tbody.innerHTML='';
   var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
-  var lastCat='';
-  PRODUCTS.forEach(function(p,i){
-    if(p.cat!==lastCat){lastCat=p.cat;var sep=document.createElement('tr');sep.innerHTML='<td colspan="12" style="background:var(--or);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[p.cat]+'</td>';tbody.appendChild(sep)}
-    var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
-    var tr=document.createElement('tr');
-    tr.innerHTML=
-      '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
-      '<td class="c-blue" id="si_'+i+'">'+(fmt(si)||0)+'</td>'+
-      '<td class="c-blue" id="ent_'+i+'">'+(admDay.ent?admDay.ent[i]||0:0)+'</td>'+
-      LOCS.map(function(l){return '<td class="c-yellow"><input class="qty" type="number" min="0" step="any" id="'+l+'_'+i+'" placeholder="0" oninput="calcRow('+i+')"></td>'}).join('')+
-      '<td class="c-calc" id="sf_'+i+'">0</td>'+
-      '<td class="c-calc" id="cr_'+i+'">0</td>'+
-      '<td class="c-green" id="dritz_'+i+'">'+(admDay.dritz[i]||0)+'</td>'+
-      '<td class="c-calc" id="dtg_'+i+'">—</td>'+
-      '<td class="c-calc" id="dif_'+i+'">—</td>';
-    tbody.appendChild(tr);
+  // Group by category preserving original indices
+  var byCat={guiso:[],postre:[],bebida:[]};
+  PRODUCTS.forEach(function(p,i){if(byCat[p.cat])byCat[p.cat].push({p:p,i:i})});
+  ['guiso','postre','bebida'].forEach(function(cat){
+    if(!byCat[cat].length)return;
+    var sep=document.createElement('tr');
+    sep.innerHTML='<td colspan="12" style="background:var(--or);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[cat]+'</td>';
+    tbody.appendChild(sep);
+    byCat[cat].forEach(function(item){
+      var p=item.p,i=item.i;
+      var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
+      var tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
+        '<td class="c-blue" id="si_'+i+'">'+(fmt(si)||0)+'</td>'+
+        '<td class="c-blue" id="ent_'+i+'">'+(admDay.ent?admDay.ent[i]||0:0)+'</td>'+
+        LOCS.map(function(l){return '<td class="c-yellow"><input class="qty" type="number" min="0" step="any" id="'+l+'_'+i+'" placeholder="0" oninput="calcRow('+i+')"></td>'}).join('')+
+        '<td class="c-calc" id="sf_'+i+'">0</td>'+
+        '<td class="c-calc" id="cr_'+i+'">0</td>'+
+        '<td class="c-green" id="dritz_'+i+'">'+(admDay.dritz[i]||0)+'</td>'+
+        '<td class="c-calc" id="dtg_'+i+'">—</td>'+
+        '<td class="c-calc" id="dif_'+i+'">—</td>';
+      tbody.appendChild(tr);
+    });
   });
   document.getElementById('regFoot').innerHTML='<tr class="total-row"><td colspan="2">TOTAL</td>'+
     '<td id="tot_si">0</td><td id="tot_ent">0</td>'+
@@ -756,17 +789,25 @@ function loadAdmTable(){
   var hasAdmSI=admSI.some(function(v){return v>0});
   var tbody=document.getElementById('admBody');tbody.innerHTML='';
   var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
-  var lastCat='';
-  PRODUCTS.forEach(function(p,i){
-    if(p.cat!==lastCat){lastCat=p.cat;var sep=document.createElement('tr');sep.innerHTML='<td colspan="5" style="background:var(--adm);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[p.cat]+'</td>';tbody.appendChild(sep)}
-    var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
-    var tr=document.createElement('tr');
-    tr.innerHTML=
-      '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
-      '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="a_si_'+i+'" value="'+(si||0)+'" placeholder="0"></td>'+
-      '<td class="c-yellow"><input class="qty adm-inp" type="number" min="0" step="any" id="a_ent_'+i+'" value="'+(admDay.ent?admDay.ent[i]||'':'')+'" placeholder="0"></td>'+
-      '<td class="c-green"><input class="qty adm-inp" type="number" min="0" step="any" id="a_dritz_'+i+'" value="'+(admDay.dritz[i]||'')+'" placeholder="0"></td>';
-    tbody.appendChild(tr);
+  // Group by category preserving original indices
+  var byCat={guiso:[],postre:[],bebida:[]};
+  PRODUCTS.forEach(function(p,i){if(byCat[p.cat])byCat[p.cat].push({p:p,i:i})});
+  ['guiso','postre','bebida'].forEach(function(cat){
+    if(!byCat[cat].length)return;
+    var sep=document.createElement('tr');
+    sep.innerHTML='<td colspan="5" style="background:var(--adm);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[cat]+'</td>';
+    tbody.appendChild(sep);
+    byCat[cat].forEach(function(item){
+      var p=item.p,i=item.i;
+      var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
+      var tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
+        '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="a_si_'+i+'" value="'+(si||0)+'" placeholder="0"></td>'+
+        '<td class="c-yellow"><input class="qty adm-inp" type="number" min="0" step="any" id="a_ent_'+i+'" value="'+(admDay.ent?admDay.ent[i]||'':'')+'" placeholder="0"></td>'+
+        '<td class="c-green"><input class="qty adm-inp" type="number" min="0" step="any" id="a_dritz_'+i+'" value="'+(admDay.dritz[i]||'')+'" placeholder="0"></td>';
+      tbody.appendChild(tr);
+    });
   });
   toast('✅ Tabla cargada — '+admSuc+' '+fmtDate(admDate));
 }
