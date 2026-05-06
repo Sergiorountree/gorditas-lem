@@ -245,6 +245,49 @@ input.qty.adm-inp:focus{outline:2px solid var(--adm)}
   <div id="efAdmContent"></div>
 </div>
 
+<!-- EDITAR REGISTRO (ADMIN) -->
+<div class="page" id="pageEditRec">
+  <div class="sec-header">
+    <h2>✏️ Corregir Registro</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span class="badge" style="background:var(--adm);color:#fff" id="editSucBadge"></span>
+      <span class="badge badge-date" id="editDate"></span>
+    </div>
+  </div>
+  <div style="background:#fff3e0;border-left:3px solid var(--or);padding:9px 12px;border-radius:6px;margin-bottom:12px;font-size:.83rem;color:#5d4037">
+    ⚠️ Estás corrigiendo un registro guardado por un gerente. Al guardar, se sobreescribirá el registro y se recalcularán automáticamente Saldo Final, Consumo Real, Df. Teórica, Diferencia y Eficiencia.
+  </div>
+  <div class="legend">
+    <div class="leg-item"><div class="leg-dot" style="background:#e3f2fd"></div> Editable (admin)</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#fce4ec"></div> Calculado</div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>Producto</th><th>Unidad</th>
+      <th style="background:#0d47a1;color:#fff">Saldo Inicial</th>
+      <th style="background:#0d47a1;color:#fff">Entrada</th>
+      <th style="background:#0d47a1;color:#fff">Baño María</th>
+      <th style="background:#0d47a1;color:#fff">Refrigerador</th>
+      <th style="background:#0d47a1;color:#fff">Congelador</th>
+      <th style="background:#880e4f;color:#fff">Saldo Final</th>
+      <th style="background:#880e4f;color:#fff">Consumo Real</th>
+      <th style="background:#1b5e20;color:#fff">Dritzline</th>
+      <th style="background:#880e4f;color:#fff">Df. Teórica</th>
+      <th style="background:#880e4f;color:#fff">Diferencia (g)</th>
+    </tr></thead>
+    <tbody id="editBody"></tbody>
+    <tfoot id="editFoot"></tfoot>
+  </table></div>
+  <div class="summary-section" style="margin-top:14px">
+    <h3 style="font-size:.88rem;color:var(--mut);font-weight:600;margin-bottom:9px">Eficiencia Recalculada</h3>
+    <div id="editEffGrid"></div>
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:12px">
+    <button class="btn btn-adm" onclick="saveEditRec()">💾 Guardar Cambios</button>
+    <button class="btn btn-sec" onclick="cancelEditRec()">❌ Cancelar</button>
+  </div>
+</div>
+
 <!-- ADMINISTRACION -->
 <div class="page" id="pageAdministracion">
   <div class="adm-header"><h2>⚙️ Administración</h2><p>Gestión de sucursales, productos y usuarios</p></div>
@@ -930,9 +973,10 @@ function buildHistEntry(rec,sucursal){
   }).filter(Boolean).join('');
   var totSF=fmt((rec.saldoFinal||[]).reduce(function(a,b){return a+b},0));
   var effCats=rec.eficiencia||calcEff(PRODUCTS.map(function(_,i){return admDay.dritz?admDay.dritz[i]||0:0}),PRODUCTS.map(function(_,i){return rec.consumoReal?rec.consumoReal[i]||0:0}));
+  var editBtn=role==='admin'?'<button class="btn btn-adm" style="font-size:.72rem;padding:4px 9px" data-suc="'+sucursal+'" data-date="'+rec.date+'" onclick="event.stopPropagation();openEditRec(this.dataset.suc,this.dataset.date)">✏️ Editar</button>':'';
   return '<div class="hist-entry"><div class="hist-hdr" onclick="toggleEntry(this)">'+
     '<h3>📅 '+fmtDate(rec.date)+'</h3>'+
-    '<span style="font-size:.78rem;color:#5a3800;font-weight:700">SF: '+totSF+'</span></div>'+
+    '<div style="display:flex;align-items:center;gap:8px">'+editBtn+'<span style="font-size:.78rem;color:#5a3800;font-weight:700">SF: '+totSF+'</span></div></div>'+
     '<div style="display:none"><div class="tbl-wrap" style="border-radius:0;border:none"><table style="min-width:600px">'+
     '<thead><tr><th>Producto</th><th>Unidad</th><th>S.Inicial</th><th>Entrada</th>'+
     LOC_LABELS.map(function(l){return '<th>'+l+'</th>'}).join('')+
@@ -1069,6 +1113,136 @@ function addProduct(){
 }
 function archiveProduct(name){if(!confirm('¿Archivar "'+name+'"?'))return;var p=CONFIG.products.find(function(x){return x.name===name});if(p)p.archived=true;saveConfigFB();renderAdminConfig();toast('📦 Archivado')}
 function restoreProduct(name){var p=CONFIG.products.find(function(x){return x.name===name});if(p)p.archived=false;saveConfigFB();renderAdminConfig();toast('✅ Restaurado')}
+
+// ── ADMIN EDIT REGISTRO ───────────────────────────────────────────────────────
+var editSuc=null, editDate=null;
+function openEditRec(sucursal, dateStr){
+  if(role!=='admin'){toast('⚠️ Solo el administrador puede corregir registros');return;}
+  editSuc=sucursal; editDate=dateStr;
+  // Make sure data is loaded for this sucursal
+  if(!invCache[sucursal])listenInv(sucursal);
+  if(!admCache[sucursal])listenAdm(sucursal);
+  buildEditTable();
+  showPage('pageEditRec');
+  // Deactivate tabs since this is a sub-page
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+}
+function buildEditTable(){
+  var rec=getInvData(editSuc)[dateKey(editDate)];
+  if(!rec){toast('⚠️ Registro no encontrado');cancelEditRec();return;}
+  var admDay=getAdmDay(editSuc,editDate);
+  var prevSF=getPrevSF(editSuc,editDate);
+  document.getElementById('editSucBadge').textContent='🏪 '+editSuc;
+  document.getElementById('editDate').textContent=fmtDate(editDate);
+  var tbody=document.getElementById('editBody');tbody.innerHTML='';
+  var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
+  var byCat={guiso:[],postre:[],bebida:[]};
+  PRODUCTS.forEach(function(p,i){if(byCat[p.cat])byCat[p.cat].push({p:p,i:i})});
+  ['guiso','postre','bebida'].forEach(function(cat){
+    if(!byCat[cat].length)return;
+    var sep=document.createElement('tr');
+    sep.innerHTML='<td colspan="12" style="background:var(--adm);color:#fff;font-weight:700;font-size:.82rem;padding:5px 8px;text-align:left">'+catLabel[cat]+'</td>';
+    tbody.appendChild(sep);
+    byCat[cat].forEach(function(item){
+      var p=item.p, i=item.i;
+      var hasAdmSI=admDay.si && admDay.si.some(function(v){return v>0});
+      var siVal=hasAdmSI?(admDay.si[i]||0):(prevSF?prevSF[i]||0:0);
+      var entVal=admDay.ent && admDay.ent[i]?admDay.ent[i]:(rec.rows && rec.rows[i]?rec.rows[i].ent||0:0);
+      var locsVal=(rec.rows && rec.rows[i] && rec.rows[i].locs)?rec.rows[i].locs:[0,0,0];
+      var dritzVal=admDay.dritz && admDay.dritz[i]?admDay.dritz[i]:0;
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td>'+p.name+'</td><td>'+p.unit+'</td>'+
+        '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="e_si_'+i+'" value="'+siVal+'" oninput="calcEditRow('+i+')"></td>'+
+        '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="e_ent_'+i+'" value="'+entVal+'" oninput="calcEditRow('+i+')"></td>'+
+        LOCS.map(function(l,j){return '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="e_'+l+'_'+i+'" value="'+(locsVal[j]||0)+'" oninput="calcEditRow('+i+')"></td>'}).join('')+
+        '<td class="c-calc" id="e_sf_'+i+'">0</td>'+
+        '<td class="c-calc" id="e_cr_'+i+'">0</td>'+
+        '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="e_dritz_'+i+'" value="'+dritzVal+'" oninput="calcEditRow('+i+')"></td>'+
+        '<td class="c-calc" id="e_dtg_'+i+'">—</td>'+
+        '<td class="c-calc" id="e_dif_'+i+'">—</td>';
+      tbody.appendChild(tr);
+    });
+  });
+  document.getElementById('editFoot').innerHTML='<tr class="total-row"><td colspan="2">TOTAL</td>'+
+    '<td id="e_tot_si">0</td><td id="e_tot_ent">0</td>'+
+    LOCS.map(function(l){return '<td id="e_tot_'+l+'">0</td>'}).join('')+
+    '<td id="e_tot_sf">0</td><td id="e_tot_cr">0</td><td id="e_tot_dritz">0</td><td>—</td><td>—</td></tr>';
+  recalcAllEdit();
+}
+function calcEditRow(i){
+  var siEl=document.getElementById('e_si_'+i);if(!siEl)return;
+  var si=num(siEl.value);
+  var ent=num(document.getElementById('e_ent_'+i).value);
+  var lv=LOCS.map(function(l){return num(document.getElementById('e_'+l+'_'+i).value)});
+  var sf=lv.reduce(function(a,b){return a+b},0);
+  var cr=(si+ent)-sf;
+  document.getElementById('e_sf_'+i).textContent=fmt(sf);
+  document.getElementById('e_cr_'+i).textContent=fmt(cr);
+  var dritz=num(document.getElementById('e_dritz_'+i).value);
+  var difG=dritz?cr-dritz:null;
+  document.getElementById('e_dif_'+i).textContent=difG!==null?fmt(difG):'—';
+  document.getElementById('e_dtg_'+i).textContent=difG!==null?Math.round(difG/PRODUCTS[i].gpg):'—';
+  updateEditTotals();updateEditEff();
+}
+function recalcAllEdit(){PRODUCTS.forEach(function(_,i){calcEditRow(i)})}
+function updateEditTotals(){
+  ['si','ent'].concat(LOCS).concat(['sf','cr','dritz']).forEach(function(k){
+    var t=0;
+    PRODUCTS.forEach(function(_,i){
+      var el=document.getElementById('e_'+k+'_'+i);if(!el)return;
+      t+=el.tagName==='INPUT'?num(el.value):num(el.textContent);
+    });
+    var tot=document.getElementById('e_tot_'+k);if(tot)tot.textContent=fmt(t);
+  });
+}
+function updateEditEff(){
+  var grid=document.getElementById('editEffGrid');if(!grid)return;
+  var da=PRODUCTS.map(function(_,i){var el=document.getElementById('e_dritz_'+i);return el?num(el.value):0});
+  var ca=PRODUCTS.map(function(_,i){var el=document.getElementById('e_cr_'+i);return el?num(el.textContent):0});
+  grid.innerHTML=effHTML(calcEff(da,ca));
+}
+function saveEditRec(){
+  if(!editSuc||!editDate){toast('⚠️ Sesión inválida');return;}
+  if(!confirm('¿Guardar los cambios para '+editSuc+' del '+fmtDate(editDate)+'?\n\nSe sobreescribirá el registro existente y se recalcularán todas las eficiencias.'))return;
+  var si=PRODUCTS.map(function(_,i){var el=document.getElementById('e_si_'+i);return el?num(el.value):0});
+  var ent=PRODUCTS.map(function(_,i){var el=document.getElementById('e_ent_'+i);return el?num(el.value):0});
+  var dritz=PRODUCTS.map(function(_,i){var el=document.getElementById('e_dritz_'+i);return el?num(el.value):0});
+  var rows=PRODUCTS.map(function(_,i){
+    return{
+      ent:ent[i],
+      locs:LOCS.map(function(l){var el=document.getElementById('e_'+l+'_'+i);return el?num(el.value):0})
+    };
+  });
+  var sf=PRODUCTS.map(function(_,i){return rows[i].locs.reduce(function(a,b){return a+b},0)});
+  var cr=PRODUCTS.map(function(_,i){return (si[i]+ent[i])-sf[i]});
+  var diferencia=PRODUCTS.map(function(p,i){var dg=dritz[i]?cr[i]-dritz[i]:null;return{difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null}});
+  var eficiencia=calcEff(dritz,cr);
+  var origRec=getInvData(editSuc)[dateKey(editDate)]||{};
+  var newRec={
+    date:editDate,
+    rows:rows,
+    saldoFinal:sf,
+    consumoReal:cr,
+    diferencia:diferencia,
+    eficiencia:eficiencia,
+    ts:origRec.ts||Date.now()
+  };
+  var admRec={si:si,ent:ent,dritz:dritz,ts:Date.now()};
+  Promise.all([
+    getInvRef(editSuc).child(dateKey(editDate)).set(newRec),
+    getAdmRef(editSuc).child(dateKey(editDate)).set(admRec)
+  ]).then(function(){
+    toast('✅ Registro corregido para '+editSuc);
+    cancelEditRec();
+  }).catch(function(){
+    toast('❌ Error al guardar. Verifica conexión');
+  });
+}
+function cancelEditRec(){
+  editSuc=null; editDate=null;
+  switchTab('pageAdmin','tabPanel');
+  renderAdmin();
+}
 
 // ── EXPORT ────────────────────────────────────────────────────────────────────
 function buildExcelRows(sucursal,recs){
