@@ -395,39 +395,96 @@ db.ref('.info/connected').on('value',function(snap){
 });
 
 // ── DEFAULT DATA ──────────────────────────────────────────────────────────────
+// IMPORTANTE: cada producto tiene un "id" PERMANENTE que nunca cambia.
+// Los datos históricos se identifican por este id (no por su posición en la lista),
+// por lo que archivar, agregar o reordenar productos ya NO desalinea el histórico.
+// Los id p0..p30 corresponden al orden ORIGINAL de los 31 productos: este mapeo
+// permite traducir los registros viejos (guardados como arreglo por posición).
 var DP=[
-  {name:"Asado de Puerco",unit:"g",cat:"guiso",gpg:65,costo:112.75},
-  {name:"Barbacoa",unit:"g",cat:"guiso",gpg:53,costo:250.54},
-  {name:"Carnita en Mole",unit:"g",cat:"guiso",gpg:57,costo:108.41},
-  {name:"Carnita en SV",unit:"g",cat:"guiso",gpg:74,costo:118.25},
-  {name:"Chicharron Cruji",unit:"g",cat:"guiso",gpg:29,costo:288.86},
-  {name:"Chicharron en SV",unit:"g",cat:"guiso",gpg:66,costo:126.96},
-  {name:"Chicharron Prensado en salsa roja",unit:"g",cat:"guiso",gpg:58,costo:127.12},
-  {name:"Chicharron Salsa Morita",unit:"g",cat:"guiso",gpg:62,costo:118.56},
-  {name:"Chorizo",unit:"g",cat:"guiso",gpg:60,costo:107.59},
-  {name:"Cochinita Pibil",unit:"g",cat:"guiso",gpg:60,costo:106.27},
-  {name:"Deshebrada",unit:"g",cat:"guiso",gpg:60,costo:135.22},
-  {name:"Frijolitos",unit:"g",cat:"guiso",gpg:42,costo:50.59},
-  {name:"Huevito en SV",unit:"g",cat:"guiso",gpg:65,costo:74.22},
-  {name:"Jamon",unit:"g",cat:"guiso",gpg:31,costo:113.97},
-  {name:"Nopalitos",unit:"g",cat:"guiso",gpg:60,costo:71.82},
-  {name:"Papita en SR",unit:"g",cat:"guiso",gpg:61,costo:69.39},
-  {name:"Pastor",unit:"g",cat:"guiso",gpg:44,costo:120.89},
-  {name:"Picadillo",unit:"g",cat:"guiso",gpg:63,costo:124.57},
-  {name:"QAsadero",unit:"g",cat:"guiso",gpg:40,costo:113.33},
-  {name:"Qfresco",unit:"g",cat:"guiso",gpg:43,costo:179.70},
-  {name:"Gordita Dulce",unit:"PZA",cat:"postre",gpg:1,costo:8.60},
-  {name:"Gordita ChocoTota",unit:"PZA",cat:"postre",gpg:1,costo:10.77},
-  {name:"Epura 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
-  {name:"Lipton 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
-  {name:"Lipton Diet 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
-  {name:"7Up",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
-  {name:"Manzanita Sol 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
-  {name:"Mirinda 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
-  {name:"Pepsi Black 355ml",unit:"Botella",cat:"bebida",gpg:1,costo:7.35},
-  {name:"Pepsi Light 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
-  {name:"Pepsi 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24}
+  {id:"p0",name:"Asado de Puerco",unit:"g",cat:"guiso",gpg:65,costo:112.75},
+  {id:"p1",name:"Barbacoa",unit:"g",cat:"guiso",gpg:53,costo:250.54},
+  {id:"p2",name:"Carnita en Mole",unit:"g",cat:"guiso",gpg:57,costo:108.41},
+  {id:"p3",name:"Carnita en SV",unit:"g",cat:"guiso",gpg:74,costo:118.25},
+  {id:"p4",name:"Chicharron Cruji",unit:"g",cat:"guiso",gpg:29,costo:288.86},
+  {id:"p5",name:"Chicharron en SV",unit:"g",cat:"guiso",gpg:66,costo:126.96},
+  {id:"p6",name:"Chicharron Prensado en salsa roja",unit:"g",cat:"guiso",gpg:58,costo:127.12},
+  {id:"p7",name:"Chicharron Salsa Morita",unit:"g",cat:"guiso",gpg:62,costo:118.56},
+  {id:"p8",name:"Chorizo",unit:"g",cat:"guiso",gpg:60,costo:107.59},
+  {id:"p9",name:"Cochinita Pibil",unit:"g",cat:"guiso",gpg:60,costo:106.27},
+  {id:"p10",name:"Deshebrada",unit:"g",cat:"guiso",gpg:60,costo:135.22},
+  {id:"p11",name:"Frijolitos",unit:"g",cat:"guiso",gpg:42,costo:50.59},
+  {id:"p12",name:"Huevito en SV",unit:"g",cat:"guiso",gpg:65,costo:74.22},
+  {id:"p13",name:"Jamon",unit:"g",cat:"guiso",gpg:31,costo:113.97},
+  {id:"p14",name:"Nopalitos",unit:"g",cat:"guiso",gpg:60,costo:71.82},
+  {id:"p15",name:"Papita en SR",unit:"g",cat:"guiso",gpg:61,costo:69.39},
+  {id:"p16",name:"Pastor",unit:"g",cat:"guiso",gpg:44,costo:120.89},
+  {id:"p17",name:"Picadillo",unit:"g",cat:"guiso",gpg:63,costo:124.57},
+  {id:"p18",name:"QAsadero",unit:"g",cat:"guiso",gpg:40,costo:113.33},
+  {id:"p19",name:"Qfresco",unit:"g",cat:"guiso",gpg:43,costo:179.70},
+  {id:"p20",name:"Gordita Dulce",unit:"PZA",cat:"postre",gpg:1,costo:8.60},
+  {id:"p21",name:"Gordita ChocoTota",unit:"PZA",cat:"postre",gpg:1,costo:10.77},
+  {id:"p22",name:"Epura 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
+  {id:"p23",name:"Lipton 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
+  {id:"p24",name:"Lipton Diet 600ml",unit:"Botella",cat:"bebida",gpg:1,costo:10.13},
+  {id:"p25",name:"7Up",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {id:"p26",name:"Manzanita Sol 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {id:"p27",name:"Mirinda 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {id:"p28",name:"Pepsi Black 355ml",unit:"Botella",cat:"bebida",gpg:1,costo:7.35},
+  {id:"p29",name:"Pepsi Light 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24},
+  {id:"p30",name:"Pepsi 400ml",unit:"Botella",cat:"bebida",gpg:1,costo:9.24}
 ];
+// Orden canónico ORIGINAL por nombre → índice. Sirve para traducir registros viejos
+// (formato arreglo) y para asignar id estable a productos que vengan sin id.
+var LEGACY_ORDER=DP.map(function(p){return p.name});
+
+// ── HELPERS DE IDENTIDAD Y LECTURA RETROCOMPATIBLE ────────────────────────────
+// Genera un id estable a partir del nombre, para productos creados en producción
+// que pudieran no tener id guardado en config. Determinista: mismo nombre = mismo id.
+function slugId(name){
+  var base='px_';
+  var s=String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  return base+(s||'item');
+}
+// Garantiza que un objeto producto tenga id. Si no lo trae, usa el del orden original
+// (por nombre) y si tampoco está ahí, deriva un slug del nombre.
+function ensureId(p){
+  if(p.id)return p.id;
+  var idx=LEGACY_ORDER.indexOf(p.name);
+  return idx>=0?('p'+idx):slugId(p.name);
+}
+// Devuelve el id permanente de un producto (acepta el objeto producto).
+function pid(p){return ensureId(p)}
+
+// Detecta si un contenedor de valores está en formato VIEJO (arreglo) o NUEVO (objeto por id).
+function isLegacyArray(v){return Array.isArray(v)}
+// Detecta si un objeto es realmente un arreglo VIEJO que Firebase "comprimió" a objeto
+// con claves numéricas (ocurre cuando hay ceros: [0,0,5] puede volver como {"2":5}).
+// Si TODAS las claves son numéricas, lo tratamos como arreglo por posición.
+function isCompressedLegacy(v){
+  if(!v||typeof v!=='object'||Array.isArray(v))return false;
+  var keys=Object.keys(v);
+  if(!keys.length)return false;
+  return keys.every(function(k){return /^[0-9]+$/.test(k)});
+}
+
+// Lee de un contenedor (rows/saldoFinal/consumoReal/si/ent/dritz/diferencia) el valor
+// correspondiente a un producto, sin importar si el registro es viejo o nuevo.
+// - container: el objeto/arreglo guardado
+// - prod: el objeto producto actual (tiene id y name)
+// Devuelve el valor crudo (puede ser número, objeto {ent,locs}, objeto {difG,dtg}, etc.)
+function readByProduct(container,prod){
+  if(container===null||container===undefined)return undefined;
+  // Formato viejo: arreglo, o arreglo comprimido por Firebase (claves numéricas) → por posición
+  if(isLegacyArray(container)||isCompressedLegacy(container)){
+    var idx=LEGACY_ORDER.indexOf(prod.name);
+    if(idx<0)return undefined; // producto nuevo no existe en registros viejos
+    return container[idx];
+  }
+  // Formato nuevo: objeto indexado por id permanente
+  return container[ensureId(prod)];
+}
+// Versión numérica segura (para si/ent/dritz/saldoFinal/consumoReal).
+function readNum(container,prod){var v=readByProduct(container,prod);return (typeof v==='number')?v:(v===undefined||v===null||v===''?0:(parseFloat(v)||0))}
 var DS=[
   {name:"Bosques",pin:"123",archived:false},{name:"Anthony Quinn",pin:"123",archived:false},
   {name:"Mi Plaza",pin:"123",archived:false},{name:"Fuentes Mares",pin:"123",archived:false},
@@ -449,6 +506,16 @@ function fbKey(s){return s.replace(/[.\#\$\[\]\s]/g,'_')}
 // Load config from Firebase (will only succeed after authentication)
 var configListenerAttached=false;
 var listeningSuc={}; // tracks which sucursales we're already listening to
+// Asegura que cada producto de la lista tenga un id permanente. Si config viene de
+// Firebase sin ids (productos creados antes de esta versión), se los asigna de forma
+// estable por nombre. Devuelve true si hubo cambios (para persistir en config).
+function normalizeProducts(list){
+  var changed=false;
+  (list||[]).forEach(function(p){
+    if(p&&!p.id){p.id=ensureId(p);changed=true;}
+  });
+  return changed;
+}
 function attachConfigListener(){
   if(configListenerAttached)return;
   configListenerAttached=true;
@@ -461,6 +528,9 @@ function attachConfigListener(){
     } else {
       db.ref('config').set(CONFIG);
     }
+    // Garantizar ids permanentes; si faltaban, persistir una sola vez en config.
+    var idsAdded=normalizeProducts(CONFIG.products);
+    if(idsAdded)db.ref('config').set(CONFIG);
     PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
     populateSelects();
     // If admin, ensure we're listening to all active sucursales (listenInv/Adm have own guards)
@@ -488,6 +558,7 @@ function detachConfigListener(){
 }
 
 function saveConfigFB(){
+  normalizeProducts(CONFIG.products);
   db.ref('config').set(CONFIG);
   PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
 }
@@ -558,14 +629,33 @@ function detachAllListeners(){
 
 function getInvData(s){return invCache[s]||{}}
 function getAdmData(s){return admCache[s]||{}}
+// Devuelve los datos admin del día como objetos indexados por ID de producto ACTUAL.
+// Traduce automáticamente si el registro guardado está en formato viejo (arreglo).
+// Resultado: {si:{pX:n,...}, ent:{...}, dritz:{...}} cubriendo todos los productos activos.
 function getAdmDay(s,date){
   var d=getAdmData(s);
-  return d[dateKey(date)]||{si:PRODUCTS.map(function(){return 0}),ent:PRODUCTS.map(function(){return 0}),dritz:PRODUCTS.map(function(){return 0})};
+  var raw=d[dateKey(date)];
+  var out={si:{},ent:{},dritz:{}};
+  PRODUCTS.forEach(function(p){
+    var id=ensureId(p);
+    out.si[id]=raw?readNum(raw.si,p):0;
+    out.ent[id]=raw?readNum(raw.ent,p):0;
+    out.dritz[id]=raw?readNum(raw.dritz,p):0;
+  });
+  return out;
 }
+// Devuelve el saldoFinal del último registro anterior a 'today', como objeto {pX:n,...}
+// indexado por ID de producto ACTUAL (traducido desde formato viejo si aplica).
+// Devuelve null si no hay registro previo.
 function getPrevSF(s,today){
   var data=getInvData(s);
   var keys=Object.keys(data).filter(function(k){return keyToDate(k)<today}).sort(function(a,b){return b.localeCompare(a)});
-  return keys.length?data[keys[0]].saldoFinal:null;
+  if(!keys.length)return null;
+  var sfRaw=data[keys[0]].saldoFinal;
+  if(sfRaw===null||sfRaw===undefined)return null;
+  var out={};
+  PRODUCTS.forEach(function(p){out[ensureId(p)]=readNum(sfRaw,p)});
+  return out;
 }
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
@@ -798,15 +888,15 @@ function refreshRegReadonly(){
   var fecha=regSelDate||todayStr();
   var admDay=getAdmDay(suc,fecha);
   var prevSF=getPrevSF(suc,fecha);
-  var admSI=admDay.si||[];
-  var hasAdmSI=admSI.some(function(v){return v>0});
-  PRODUCTS.forEach(function(_,i){
+  var hasAdmSI=Object.keys(admDay.si).some(function(k){return admDay.si[k]>0});
+  PRODUCTS.forEach(function(p,i){
+    var id=ensureId(p);
     var siEl=document.getElementById('si_'+i);
     var entEl=document.getElementById('ent_'+i);
     var dritzEl=document.getElementById('dritz_'+i);
-    if(siEl)siEl.textContent=fmt(hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0))||0;
-    if(entEl)entEl.textContent=admDay.ent?admDay.ent[i]||0:0;
-    if(dritzEl)dritzEl.textContent=admDay.dritz[i]||0;
+    if(siEl)siEl.textContent=fmt(hasAdmSI?(admDay.si[id]||0):(prevSF?prevSF[id]||0:0))||0;
+    if(entEl)entEl.textContent=admDay.ent[id]||0;
+    if(dritzEl)dritzEl.textContent=admDay.dritz[id]||0;
   });
   recalcAll();
 }
@@ -818,8 +908,7 @@ function buildRegTable(){
   document.getElementById('regDate').textContent=fmtDate(today);
   var admDay=getAdmDay(suc,today);
   var prevSF=getPrevSF(suc,today);
-  var admSI=admDay.si||[];
-  var hasAdmSI=admSI.some(function(v){return v>0});
+  var hasAdmSI=Object.keys(admDay.si).some(function(k){return admDay.si[k]>0});
   var tbody=document.getElementById('regBody');tbody.innerHTML='';
   var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
   // Group by category preserving original indices
@@ -832,16 +921,17 @@ function buildRegTable(){
     tbody.appendChild(sep);
     byCat[cat].forEach(function(item){
       var p=item.p,i=item.i;
-      var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
+      var id=ensureId(p);
+      var si=hasAdmSI?(admDay.si[id]||0):(prevSF?prevSF[id]||0:0);
       var tr=document.createElement('tr');
       tr.innerHTML=
         '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
         '<td class="c-blue" id="si_'+i+'">'+(fmt(si)||0)+'</td>'+
-        '<td class="c-blue" id="ent_'+i+'">'+(admDay.ent?admDay.ent[i]||0:0)+'</td>'+
+        '<td class="c-blue" id="ent_'+i+'">'+(admDay.ent[id]||0)+'</td>'+
         LOCS.map(function(l){return '<td class="c-yellow"><input class="qty" type="number" min="0" step="any" id="'+l+'_'+i+'" placeholder="0" oninput="calcRow('+i+')"></td>'}).join('')+
         '<td class="c-calc" id="sf_'+i+'">0</td>'+
         '<td class="c-calc" id="cr_'+i+'">0</td>'+
-        '<td class="c-green" id="dritz_'+i+'">'+(admDay.dritz[i]||0)+'</td>'+
+        '<td class="c-green" id="dritz_'+i+'">'+(admDay.dritz[id]||0)+'</td>'+
         '<td class="c-calc" id="dtg_'+i+'">—</td>'+
         '<td class="c-calc" id="dif_'+i+'">—</td>';
       tbody.appendChild(tr);
@@ -882,7 +972,7 @@ function updateEffLive(){
   var rec=data[dateKey(today)];
   if(rec&&rec.eficiencia){document.getElementById('effGrid').innerHTML=effHTML(rec.eficiencia);return}
   var admDay=getAdmDay(suc,today);
-  var da=PRODUCTS.map(function(_,i){return admDay.dritz[i]||0});
+  var da=PRODUCTS.map(function(p){return admDay.dritz[ensureId(p)]||0});
   var ca=PRODUCTS.map(function(_,i){var el=document.getElementById('cr_'+i);return el?num(el.textContent):0});
   document.getElementById('effGrid').innerHTML=effHTML(calcEff(da,ca));
 }
@@ -921,14 +1011,23 @@ function saveDay(){
   var etiqueta=esAyer?'de ayer':'de hoy';
   var data=getInvData(suc);
   if(data[dateKey(today)]){toast('⚠️ Ya se registró el inventario '+etiqueta);clearGerente();return}
-  var rows=PRODUCTS.map(function(_,i){
-    return{ent:num(document.getElementById('ent_'+i).textContent),locs:LOCS.map(function(l){return num(document.getElementById(l+'_'+i).value)})};
+  // Construir rows como OBJETO indexado por id permanente del producto.
+  var rows={};
+  PRODUCTS.forEach(function(p,i){
+    rows[ensureId(p)]={ent:num(document.getElementById('ent_'+i).textContent),locs:LOCS.map(function(l){return num(document.getElementById(l+'_'+i).value)})};
   });
-  if(!rows.some(function(r){return r.locs.some(function(v){return v>0})})){toast('⚠️ No hay datos para guardar');return}
+  var hayDatos=PRODUCTS.some(function(p,i){return LOCS.some(function(l){return num(document.getElementById(l+'_'+i).value)>0})});
+  if(!hayDatos){toast('⚠️ No hay datos para guardar');return}
   if(esAyer&&!confirm('Estás registrando el inventario de AYER ('+fmtDate(today)+').\n\n¿Confirmas que los datos corresponden a ese día?'))return;
-  var sf=PRODUCTS.map(function(_,i){return LOCS.reduce(function(a,l){return a+num(document.getElementById(l+'_'+i).value)},0)});
-  var cr=PRODUCTS.map(function(_,i){return (num(document.getElementById('si_'+i).textContent)+num(document.getElementById('ent_'+i).textContent))-sf[i]});
-  var rec={date:today,rows:rows,saldoFinal:sf,consumoReal:cr,ts:Date.now()};
+  // saldoFinal y consumoReal también como objetos por id.
+  var sf={}, cr={};
+  PRODUCTS.forEach(function(p,i){
+    var id=ensureId(p);
+    var s=LOCS.reduce(function(a,l){return a+num(document.getElementById(l+'_'+i).value)},0);
+    sf[id]=s;
+    cr[id]=(num(document.getElementById('si_'+i).textContent)+num(document.getElementById('ent_'+i).textContent))-s;
+  });
+  var rec={date:today,rows:rows,saldoFinal:sf,consumoReal:cr,fmt:'v2',ts:Date.now()};
   getInvRef(suc).child(dateKey(today)).set(rec).then(function(){
     clearGerente();
     // Si se guardó "ayer", se cierra la sesión de gracia y se vuelve a "hoy".
@@ -954,8 +1053,7 @@ function loadAdmTable(){
   document.getElementById('admRegDate').textContent=fmtDate(admDate);
   var admDay=getAdmDay(admSuc,admDate);
   var prevSF=getPrevSF(admSuc,admDate);
-  var admSI=admDay.si||[];
-  var hasAdmSI=admSI.some(function(v){return v>0});
+  var hasAdmSI=Object.keys(admDay.si).some(function(k){return admDay.si[k]>0});
   var tbody=document.getElementById('admBody');tbody.innerHTML='';
   var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
   // Group by category preserving original indices
@@ -968,13 +1066,14 @@ function loadAdmTable(){
     tbody.appendChild(sep);
     byCat[cat].forEach(function(item){
       var p=item.p,i=item.i;
-      var si=hasAdmSI?(admSI[i]||0):(prevSF?prevSF[i]:0);
+      var id=ensureId(p);
+      var si=hasAdmSI?(admDay.si[id]||0):(prevSF?prevSF[id]||0:0);
       var tr=document.createElement('tr');
       tr.innerHTML=
         '<td>'+p.name+'</td><td>'+p.unit+'</td>'+
         '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="a_si_'+i+'" value="'+(si||0)+'" placeholder="0"></td>'+
-        '<td class="c-yellow"><input class="qty adm-inp" type="number" min="0" step="any" id="a_ent_'+i+'" value="'+(admDay.ent?admDay.ent[i]||'':'')+'" placeholder="0"></td>'+
-        '<td class="c-green"><input class="qty adm-inp" type="number" min="0" step="any" id="a_dritz_'+i+'" value="'+(admDay.dritz[i]||'')+'" placeholder="0"></td>';
+        '<td class="c-yellow"><input class="qty adm-inp" type="number" min="0" step="any" id="a_ent_'+i+'" value="'+(admDay.ent[id]||'')+'" placeholder="0"></td>'+
+        '<td class="c-green"><input class="qty adm-inp" type="number" min="0" step="any" id="a_dritz_'+i+'" value="'+(admDay.dritz[id]||'')+'" placeholder="0"></td>';
       tbody.appendChild(tr);
     });
   });
@@ -982,22 +1081,43 @@ function loadAdmTable(){
 }
 function saveAdmData(){
   if(!admSuc||!admDate){toast('⚠️ Carga primero la tabla');return}
-  var si=PRODUCTS.map(function(_,i){var el=document.getElementById('a_si_'+i);return el?num(el.value):0});
-  var ent=PRODUCTS.map(function(_,i){var el=document.getElementById('a_ent_'+i);return el?num(el.value):0});
-  var dritz=PRODUCTS.map(function(_,i){var el=document.getElementById('a_dritz_'+i);return el?num(el.value):0});
-  var admRec={si:si,ent:ent,dritz:dritz,ts:Date.now()};
+  // Construir si/ent/dritz como objetos indexados por id permanente.
+  var si={}, ent={}, dritz={};
+  PRODUCTS.forEach(function(p,i){
+    var id=ensureId(p);
+    var sEl=document.getElementById('a_si_'+i), eEl=document.getElementById('a_ent_'+i), dEl=document.getElementById('a_dritz_'+i);
+    si[id]=sEl?num(sEl.value):0;
+    ent[id]=eEl?num(eEl.value):0;
+    dritz[id]=dEl?num(dEl.value):0;
+  });
+  var admRec={si:si,ent:ent,dritz:dritz,fmt:'v2',ts:Date.now()};
   getAdmRef(admSuc).child(dateKey(admDate)).set(admRec).then(function(){
-    // Update inventory record if exists
+    // Actualizar el registro de inventario si existe (recalcular derivados).
     var data=getInvData(admSuc);
     var rec=data[dateKey(admDate)];
     if(rec){
       var prevSF=getPrevSF(admSuc,admDate);
-      var hasAdmSI=si.some(function(v){return v>0});
-      PRODUCTS.forEach(function(_,i){if(!rec.rows[i])rec.rows[i]={ent:0,locs:[0,0,0]};rec.rows[i].ent=ent[i]});
-      rec.saldoFinal=PRODUCTS.map(function(_,i){var locs=rec.rows[i].locs||[0,0,0];return locs.reduce(function(a,b){return a+b},0)});
-      rec.consumoReal=PRODUCTS.map(function(_,i){var sv=hasAdmSI?(si[i]||0):(prevSF?prevSF[i]:0);return (sv+ent[i])-rec.saldoFinal[i]});
-      rec.diferencia=PRODUCTS.map(function(p,i){var dg=dritz[i]?rec.consumoReal[i]-dritz[i]:null;return{difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null}});
-      rec.eficiencia=calcEff(dritz,rec.consumoReal);
+      var hasAdmSI=Object.keys(si).some(function(k){return si[k]>0});
+      // Reconstruir rows/saldoFinal/consumoReal/diferencia SIEMPRE en formato nuevo (por id),
+      // leyendo los locs originales con readByProduct (soporta registro viejo o nuevo).
+      var newRows={}, newSF={}, newCR={}, newDif={};
+      PRODUCTS.forEach(function(p){
+        var id=ensureId(p);
+        var prevRow=readByProduct(rec.rows,p);
+        var locs=(prevRow&&prevRow.locs)?prevRow.locs:[0,0,0];
+        newRows[id]={ent:ent[id]||0,locs:locs};
+        var s=locs.reduce(function(a,b){return a+(parseFloat(b)||0)},0);
+        newSF[id]=s;
+        var sv=hasAdmSI?(si[id]||0):(prevSF?prevSF[id]||0:0);
+        newCR[id]=(sv+(ent[id]||0))-s;
+        var dz=dritz[id]||0;
+        var dg=dz?newCR[id]-dz:null;
+        newDif[id]={difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null};
+      });
+      rec.rows=newRows; rec.saldoFinal=newSF; rec.consumoReal=newCR; rec.diferencia=newDif; rec.fmt='v2';
+      var da=PRODUCTS.map(function(p){return dritz[ensureId(p)]||0});
+      var ca=PRODUCTS.map(function(p){return newCR[ensureId(p)]});
+      rec.eficiencia=calcEff(da,ca);
       getInvRef(admSuc).child(dateKey(admDate)).set(rec).then(function(){
         toast('✅ Guardado y eficiencias actualizadas para '+admSuc);
       });
@@ -1052,18 +1172,20 @@ function renderHistory(){
 }
 function buildHistEntry(rec,sucursal){
   var admDay=getAdmDay(sucursal,rec.date);
-  var rows=PRODUCTS.map(function(p,i){
-    var lv=LOCS.map(function(_,j){return rec.rows&&rec.rows[i]&&rec.rows[i].locs?rec.rows[i].locs[j]||0:0});
-    var sf=rec.saldoFinal?rec.saldoFinal[i]||0:0;
-    var cr=rec.consumoReal?rec.consumoReal[i]||0:0;
-    var ent=rec.rows&&rec.rows[i]?rec.rows[i].ent||0:0;
-    var dritz=admDay.dritz[i]||0;
-    var difObj=rec.diferencia?rec.diferencia[i]:null;
+  var rows=PRODUCTS.map(function(p){
+    var id=ensureId(p);
+    var rowObj=readByProduct(rec.rows,p);
+    var lv=LOCS.map(function(_,j){return (rowObj&&rowObj.locs)?rowObj.locs[j]||0:0});
+    var sf=readNum(rec.saldoFinal,p);
+    var cr=readNum(rec.consumoReal,p);
+    var ent=rowObj?rowObj.ent||0:0;
+    var dritz=admDay.dritz[id]||0;
+    var difObj=readByProduct(rec.diferencia,p);
     var difG=difObj?difObj.difG:(dritz?cr-dritz:null);
     var dtg=difObj?difObj.dtg:(difG!==null?Math.round(difG/p.gpg):null);
     if(!sf&&!cr&&!lv.some(function(v){return v}))return '';
     return '<tr><td>'+p.name+'</td><td>'+p.unit+'</td>'+
-      '<td>'+(admDay.si?admDay.si[i]||0:0)+'</td>'+
+      '<td>'+(admDay.si[id]||0)+'</td>'+
       '<td>'+ent+'</td>'+
       lv.map(function(v){return '<td>'+(v||'')+'</td>'}).join('')+
       '<td class="c-calc">'+fmt(sf)+'</td><td class="c-calc">'+fmt(cr)+'</td>'+
@@ -1071,8 +1193,9 @@ function buildHistEntry(rec,sucursal){
       '<td class="c-calc">'+(dtg!==null?dtg:'—')+'</td>'+
       '<td class="c-calc">'+(difG!==null?fmt(difG):'—')+'</td></tr>';
   }).filter(Boolean).join('');
-  var totSF=fmt((rec.saldoFinal||[]).reduce(function(a,b){return a+b},0));
-  var effCats=rec.eficiencia||calcEff(PRODUCTS.map(function(_,i){return admDay.dritz?admDay.dritz[i]||0:0}),PRODUCTS.map(function(_,i){return rec.consumoReal?rec.consumoReal[i]||0:0}));
+  // Total SF: sumar por producto (soporta formato viejo y nuevo).
+  var totSF=fmt(PRODUCTS.reduce(function(a,p){return a+readNum(rec.saldoFinal,p)},0));
+  var effCats=rec.eficiencia||calcEff(PRODUCTS.map(function(p){return admDay.dritz[ensureId(p)]||0}),PRODUCTS.map(function(p){return readNum(rec.consumoReal,p)}));
   var editBtn=role==='admin'?'<button class="btn btn-adm" style="font-size:.72rem;padding:4px 9px" data-suc="'+sucursal+'" data-date="'+rec.date+'" onclick="event.stopPropagation();openEditRec(this.dataset.suc,this.dataset.date)">✏️ Editar</button>':'';
   return '<div class="hist-entry"><div class="hist-hdr" onclick="toggleEntry(this)">'+
     '<h3>📅 '+fmtDate(rec.date)+'</h3>'+
@@ -1094,7 +1217,9 @@ function getEfData(sucursal,fm){
   recs.sort(function(a,b){return a.date.localeCompare(b.date)});
   return recs.map(function(rec){
     var admDay=getAdmDay(sucursal,rec.date);
-    var eff=rec.eficiencia||calcEff(admDay.dritz||PRODUCTS.map(function(){return 0}),rec.consumoReal||PRODUCTS.map(function(){return 0}));
+    var da=PRODUCTS.map(function(p){return admDay.dritz[ensureId(p)]||0});
+    var ca=PRODUCTS.map(function(p){return readNum(rec.consumoReal,p)});
+    var eff=rec.eficiencia||calcEff(da,ca);
     var g=eff.guiso.cons>0?Math.round((eff.guiso.vend/eff.guiso.cons)*100):null;
     var p=eff.postre.cons>0?Math.round((eff.postre.vend/eff.postre.cons)*100):null;
     var b=eff.bebida.cons>0?Math.round((eff.bebida.vend/eff.bebida.cons)*100):null;
@@ -1136,7 +1261,7 @@ function renderAdmin(){
     var data=getInvData(s.name);
     var recs=Object.values(data).filter(function(r){return r&&r.date});
     if(fm)recs=recs.filter(function(r){return r.date.startsWith(fm)});
-    var total=recs.reduce(function(a,r){return a+(r.saldoFinal||[]).reduce(function(b,v){return b+v},0)},0);
+    var total=recs.reduce(function(a,r){return a+PRODUCTS.reduce(function(b,p){return b+readNum(r.saldoFinal,p)},0)},0);
     var sorted=recs.slice().sort(function(a,b){return b.date.localeCompare(a.date)});
     var last=sorted.length?fmtDate(sorted[0].date):'Sin registros';
     var key=fbKey(s.name);
@@ -1238,6 +1363,7 @@ function buildEditTable(){
   var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
   var byCat={guiso:[],postre:[],bebida:[]};
   PRODUCTS.forEach(function(p,i){if(byCat[p.cat])byCat[p.cat].push({p:p,i:i})});
+  var hasAdmSI=Object.keys(admDay.si).some(function(k){return admDay.si[k]>0});
   ['guiso','postre','bebida'].forEach(function(cat){
     if(!byCat[cat].length)return;
     var sep=document.createElement('tr');
@@ -1245,11 +1371,12 @@ function buildEditTable(){
     tbody.appendChild(sep);
     byCat[cat].forEach(function(item){
       var p=item.p, i=item.i;
-      var hasAdmSI=admDay.si && admDay.si.some(function(v){return v>0});
-      var siVal=hasAdmSI?(admDay.si[i]||0):(prevSF?prevSF[i]||0:0);
-      var entVal=admDay.ent && admDay.ent[i]?admDay.ent[i]:(rec.rows && rec.rows[i]?rec.rows[i].ent||0:0);
-      var locsVal=(rec.rows && rec.rows[i] && rec.rows[i].locs)?rec.rows[i].locs:[0,0,0];
-      var dritzVal=admDay.dritz && admDay.dritz[i]?admDay.dritz[i]:0;
+      var id=ensureId(p);
+      var rowObj=readByProduct(rec.rows,p);
+      var siVal=hasAdmSI?(admDay.si[id]||0):(prevSF?prevSF[id]||0:0);
+      var entVal=admDay.ent[id]?admDay.ent[id]:(rowObj?rowObj.ent||0:0);
+      var locsVal=(rowObj&&rowObj.locs)?rowObj.locs:[0,0,0];
+      var dritzVal=admDay.dritz[id]||0;
       var tr=document.createElement('tr');
       tr.innerHTML='<td>'+p.name+'</td><td>'+p.unit+'</td>'+
         '<td class="c-blue"><input class="qty adm-inp" type="number" min="0" step="any" id="e_si_'+i+'" value="'+siVal+'" oninput="calcEditRow('+i+')"></td>'+
@@ -1304,19 +1431,24 @@ function updateEditEff(){
 function saveEditRec(){
   if(!editSuc||!editDate){toast('⚠️ Sesión inválida');return;}
   if(!confirm('¿Guardar los cambios para '+editSuc+' del '+fmtDate(editDate)+'?\n\nSe sobreescribirá el registro existente y se recalcularán todas las eficiencias.'))return;
-  var si=PRODUCTS.map(function(_,i){var el=document.getElementById('e_si_'+i);return el?num(el.value):0});
-  var ent=PRODUCTS.map(function(_,i){var el=document.getElementById('e_ent_'+i);return el?num(el.value):0});
-  var dritz=PRODUCTS.map(function(_,i){var el=document.getElementById('e_dritz_'+i);return el?num(el.value):0});
-  var rows=PRODUCTS.map(function(_,i){
-    return{
-      ent:ent[i],
-      locs:LOCS.map(function(l){var el=document.getElementById('e_'+l+'_'+i);return el?num(el.value):0})
-    };
+  // Construir todo indexado por id permanente.
+  var si={}, ent={}, dritz={}, rows={}, sf={}, cr={}, diferencia={};
+  PRODUCTS.forEach(function(p,i){
+    var id=ensureId(p);
+    var sEl=document.getElementById('e_si_'+i), eEl=document.getElementById('e_ent_'+i), dEl=document.getElementById('e_dritz_'+i);
+    var sv=sEl?num(sEl.value):0, ev=eEl?num(eEl.value):0, dv=dEl?num(dEl.value):0;
+    var locs=LOCS.map(function(l){var el=document.getElementById('e_'+l+'_'+i);return el?num(el.value):0});
+    var s=locs.reduce(function(a,b){return a+b},0);
+    si[id]=sv; ent[id]=ev; dritz[id]=dv;
+    rows[id]={ent:ev,locs:locs};
+    sf[id]=s;
+    cr[id]=(sv+ev)-s;
+    var dg=dv?cr[id]-dv:null;
+    diferencia[id]={difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null};
   });
-  var sf=PRODUCTS.map(function(_,i){return rows[i].locs.reduce(function(a,b){return a+b},0)});
-  var cr=PRODUCTS.map(function(_,i){return (si[i]+ent[i])-sf[i]});
-  var diferencia=PRODUCTS.map(function(p,i){var dg=dritz[i]?cr[i]-dritz[i]:null;return{difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null}});
-  var eficiencia=calcEff(dritz,cr);
+  var da=PRODUCTS.map(function(p){return dritz[ensureId(p)]||0});
+  var ca=PRODUCTS.map(function(p){return cr[ensureId(p)]});
+  var eficiencia=calcEff(da,ca);
   var origRec=getInvData(editSuc)[dateKey(editDate)]||{};
   var newRec={
     date:editDate,
@@ -1325,9 +1457,10 @@ function saveEditRec(){
     consumoReal:cr,
     diferencia:diferencia,
     eficiencia:eficiencia,
+    fmt:'v2',
     ts:origRec.ts||Date.now()
   };
-  var admRec={si:si,ent:ent,dritz:dritz,ts:Date.now()};
+  var admRec={si:si,ent:ent,dritz:dritz,fmt:'v2',ts:Date.now()};
   Promise.all([
     getInvRef(editSuc).child(dateKey(editDate)).set(newRec),
     getAdmRef(editSuc).child(dateKey(editDate)).set(admRec)
@@ -1350,16 +1483,18 @@ function buildExcelRows(sucursal,recs){
   var rows=[hdr];
   recs.forEach(function(rec){
     var admDay=getAdmDay(sucursal,rec.date);
-    PRODUCTS.forEach(function(p,i){
-      var lv=LOCS.map(function(_,j){return rec.rows&&rec.rows[i]&&rec.rows[i].locs?rec.rows[i].locs[j]||0:0});
-      var sf=rec.saldoFinal?rec.saldoFinal[i]||0:0;
-      var cr=rec.consumoReal?rec.consumoReal[i]||0:0;
-      var ent=rec.rows&&rec.rows[i]?rec.rows[i].ent||0:0;
-      var dritz=admDay.dritz?admDay.dritz[i]||0:0;
-      var difObj=rec.diferencia?rec.diferencia[i]:null;
+    PRODUCTS.forEach(function(p){
+      var id=ensureId(p);
+      var rowObj=readByProduct(rec.rows,p);
+      var lv=LOCS.map(function(_,j){return (rowObj&&rowObj.locs)?rowObj.locs[j]||0:0});
+      var sf=readNum(rec.saldoFinal,p);
+      var cr=readNum(rec.consumoReal,p);
+      var ent=rowObj?rowObj.ent||0:0;
+      var dritz=admDay.dritz[id]||0;
+      var difObj=readByProduct(rec.diferencia,p);
       var difG=difObj?difObj.difG:(dritz?cr-dritz:'');
-      var dtg=difObj?difObj.dtg:(difG!==''?Math.round(difG/p.gpg):'');
-      rows.push([sucursal,fmtDate(rec.date),p.name,p.unit,admDay.si?admDay.si[i]||0:0,ent].concat(lv).concat([sf,cr,dritz,dtg,difG]));
+      var dtg=difObj?difObj.dtg:(difG!==''&&difG!==null?Math.round(difG/p.gpg):'');
+      rows.push([sucursal,fmtDate(rec.date),p.name,p.unit,admDay.si[id]||0,ent].concat(lv).concat([sf,cr,dritz,dtg,difG]));
     });
   });
   return rows;
