@@ -435,7 +435,20 @@ var DP=[
 ];
 // Orden canónico ORIGINAL por nombre → índice. Sirve para traducir registros viejos
 // (formato arreglo) y para asignar id estable a productos que vengan sin id.
-var LEGACY_ORDER=DP.map(function(p){return p.name});
+// IMPORTANTE: este orden debe reflejar EXACTAMENTE las posiciones en que se guardaron
+// los registros viejos (formato arreglo) en Firebase. Los primeros 31 (p0..p30) son los
+// productos originales; Pepperoni (pos 31) y Combo Tota Kids (pos 32) fueron creados
+// en producción y también aparecen en registros viejos en esas posiciones, por lo que
+// DEBEN listarse aquí para que su histórico se lea correctamente.
+var LEGACY_ORDER=[
+  "Asado de Puerco","Barbacoa","Carnita en Mole","Carnita en SV","Chicharron Cruji",
+  "Chicharron en SV","Chicharron Prensado en salsa roja","Chicharron Salsa Morita","Chorizo","Cochinita Pibil",
+  "Deshebrada","Frijolitos","Huevito en SV","Jamon","Nopalitos",
+  "Papita en SR","Pastor","Picadillo","QAsadero","Qfresco",
+  "Gordita Dulce","Gordita ChocoTota","Epura 600ml","Lipton 600ml","Lipton Diet 600ml",
+  "7Up","Manzanita Sol 400ml","Mirinda 400ml","Pepsi Black 355ml","Pepsi Light 400ml",
+  "Pepsi 400ml","Pepperoni","Combo Tota Kids"
+];
 
 // ── HELPERS DE IDENTIDAD Y LECTURA RETROCOMPATIBLE ────────────────────────────
 // Genera un id estable a partir del nombre, para productos creados en producción
@@ -445,12 +458,26 @@ function slugId(name){
   var s=String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
   return base+(s||'item');
 }
-// Garantiza que un objeto producto tenga id. Si no lo trae, usa el del orden original
-// (por nombre) y si tampoco está ahí, deriva un slug del nombre.
+// Mapa de id CANÓNICO por nombre, para los productos que YA existen en Firebase.
+// Los originales (p0..p30) se guardaron con ese id; Pepperoni y Combo Tota Kids
+// se crearon en producción y se guardaron con su slug (px_pepperoni, px_combo_tota_kids).
+// Este mapa garantiza que ensureId devuelva SIEMPRE el id correcto aunque el producto
+// venga sin id, evitando que Pepperoni (pos 31) reciba por error el id "p31".
+var CANONICAL_IDS={
+  "Asado de Puerco":"p0","Barbacoa":"p1","Carnita en Mole":"p2","Carnita en SV":"p3","Chicharron Cruji":"p4",
+  "Chicharron en SV":"p5","Chicharron Prensado en salsa roja":"p6","Chicharron Salsa Morita":"p7","Chorizo":"p8","Cochinita Pibil":"p9",
+  "Deshebrada":"p10","Frijolitos":"p11","Huevito en SV":"p12","Jamon":"p13","Nopalitos":"p14",
+  "Papita en SR":"p15","Pastor":"p16","Picadillo":"p17","QAsadero":"p18","Qfresco":"p19",
+  "Gordita Dulce":"p20","Gordita ChocoTota":"p21","Epura 600ml":"p22","Lipton 600ml":"p23","Lipton Diet 600ml":"p24",
+  "7Up":"p25","Manzanita Sol 400ml":"p26","Mirinda 400ml":"p27","Pepsi Black 355ml":"p28","Pepsi Light 400ml":"p29",
+  "Pepsi 400ml":"p30","Pepperoni":"px_pepperoni","Combo Tota Kids":"px_combo_tota_kids"
+};
+// Garantiza que un objeto producto tenga id. Prioridad: id ya guardado → id canónico
+// por nombre → slug derivado del nombre (para productos nuevos futuros).
 function ensureId(p){
   if(p.id)return p.id;
-  var idx=LEGACY_ORDER.indexOf(p.name);
-  return idx>=0?('p'+idx):slugId(p.name);
+  if(CANONICAL_IDS[p.name])return CANONICAL_IDS[p.name];
+  return slugId(p.name);
 }
 // Devuelve el id permanente de un producto (acepta el objeto producto).
 function pid(p){return ensureId(p)}
