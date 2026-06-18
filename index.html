@@ -612,9 +612,19 @@ function listenInv(s){
       if(document.getElementById('pageHistory').classList.contains('active'))renderHistory();
       if(document.getElementById('pageEficiencia').classList.contains('active'))renderEficiencia();
       if(document.getElementById('pageRegister').classList.contains('active')){
-        // Refrescar solo celdas calculadas (no inputs del gerente) para la fecha seleccionada
-        refreshRegReadonly();
-        checkAlreadySaved();
+        // Al llegar datos nuevos, recalcular qué día toca capturar. Si CAMBIÓ respecto
+        // a lo que está en pantalla (p.ej. los datos confirman que "ayer" ya se guardó),
+        // reconstruir toda la tabla. Si no cambió, solo refrescar celdas de lectura
+        // para no borrar lo que el gerente esté capturando.
+        var diaAhora=getDiaACapturar();
+        if(diaAhora.fecha!==regSelDate){
+          regSelDate=diaAhora.fecha;
+          buildRegTable();
+          checkAlreadySaved();
+        } else {
+          refreshRegReadonly();
+          checkAlreadySaved();
+        }
       }
     }
     if(role==='admin'){
@@ -707,6 +717,23 @@ function ayerGraciaActiva(){
 }
 // Permite registrar "ayer" si la ventana sigue abierta O si aplica el periodo de gracia.
 function puedeRegistrarAyer(){return ayerWindowOpen()||ayerGraciaActiva()}
+// ── DÍA ÚNICO A CAPTURAR ───────────────────────────────────────────────────────
+// Determina el ÚNICO día que el gerente debe capturar en este momento, para evitar
+// la confusión de tener "Hoy" y "Ayer" abiertos a la vez. Regla: mostrar el día más
+// VIEJO que siga pendiente. Devuelve {fecha, esAyer, ayerPendiente}.
+//   - Si "ayer" aún se puede capturar (antes de la 1 PM o gracia) Y no se ha guardado
+//     todavía → toca AYER (lo más viejo pendiente), aunque hoy ya esté capturado.
+//   - En cualquier otro caso → toca HOY.
+function getDiaACapturar(){
+  var today=todayStr(), yest=yesterdayStr();
+  var data=getInvData(suc);
+  var ayerGuardado=!!data[dateKey(yest)];
+  // "Ayer" solo es candidato si la ventana sigue abierta (o gracia) y no está guardado.
+  if(puedeRegistrarAyer() && !ayerGuardado){
+    return {fecha:yest, esAyer:true, ayerPendiente:true};
+  }
+  return {fecha:today, esAyer:false, ayerPendiente:false};
+}
 function pad(n){return String(n).padStart(2,'0')}
 function fmtDate(s){var p=s.split('-');return p[2]+'/'+p[1]+'/'+p[0]}
 function fmt(n){if(n===null||n===undefined||n==='')return '';var v=parseFloat(n);if(isNaN(v))return '';return v%1===0?v:parseFloat(v.toFixed(3))}
@@ -773,7 +800,7 @@ function loginAs(r,s){
     switchTab('pageAdmin','tabPanel');renderAdmin();
   } else {
     listenInv(s);listenAdm(s);
-    regSelDate=todayStr();
+    regSelDate=null; // getDiaACapturar decidirá el día (se corrige al llegar datos)
     ayerSesionIniciada=null;
     switchTab('pageRegister','tabReg');
     buildRegTable();checkAlreadySaved();
@@ -809,7 +836,7 @@ function buildTabs(){
   }
 }
 function showPage(id){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});document.getElementById(id).classList.add('active')}
-function switchTab(pid,tid){document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});var t=document.getElementById(tid);if(t)t.classList.add('active');showPage(pid);if(pid==='pageRegister'&&role==='gerente'&&suc&&document.getElementById('si_0')){refreshRegReadonly();buildRegDateSelector();checkAlreadySaved();}}
+function switchTab(pid,tid){document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});var t=document.getElementById(tid);if(t)t.classList.add('active');showPage(pid);if(pid==='pageRegister'&&role==='gerente'&&suc&&document.getElementById('si_0')){var diaAhora=getDiaACapturar();if(diaAhora.fecha!==regSelDate){regSelDate=diaAhora.fecha;buildRegTable();checkAlreadySaved();}else{refreshRegReadonly();buildRegDateSelector();checkAlreadySaved();}}}
 
 // ── SELECTS ───────────────────────────────────────────────────────────────────
 function populateSelects(){
@@ -858,41 +885,39 @@ function buildRegDateSelector(){
   var sel=document.getElementById('regDateSelect');
   var hint=document.getElementById('regDateHint');
   if(!sel)return;
-  var today=todayStr(), yest=yesterdayStr();
-  var openAyer=ayerWindowOpen();
-  var graciaOn=ayerGraciaActiva();
-  // "Ayer" se ofrece si la ventana está abierta O si el gerente está en periodo de gracia.
-  var mostrarAyer=openAyer||graciaOn;
-  // Si la fecha guardada ya no es válida, reiniciar a hoy.
-  if(regSelDate!==today&&regSelDate!==yest)regSelDate=today;
-  if(regSelDate===yest&&!mostrarAyer)regSelDate=today;
-  var opts='<option value="'+today+'">Hoy — '+fmtDate(today)+'</option>';
-  if(mostrarAyer)opts+='<option value="'+yest+'">Ayer — '+fmtDate(yest)+'</option>';
-  sel.innerHTML=opts;
-  sel.value=regSelDate;
+  // Determinar el ÚNICO día que toca capturar.
+  var dia=getDiaACapturar();
+  regSelDate=dia.fecha;
+  // Si toca "ayer" y la ventana está abierta, marcar el inicio de sesión para la gracia.
+  if(dia.esAyer && ayerWindowOpen() && !ayerSesionIniciada){
+    ayerSesionIniciada=Date.now();
+  }
+  // El selector muestra UNA sola opción (el día que toca). Se mantiene como <select>
+  // por consistencia visual, pero sin posibilidad de confundirse entre dos días.
+  var etiqueta=dia.esAyer?('Ayer — '+fmtDate(dia.fecha)):('Hoy — '+fmtDate(dia.fecha));
+  sel.innerHTML='<option value="'+dia.fecha+'">'+etiqueta+'</option>';
+  sel.value=dia.fecha;
+  sel.disabled=true; // una sola opción, no hay nada que elegir
   if(hint){
-    if(openAyer){
-      hint.textContent='Puedes registrar el día de ayer hasta la '+HORA_LIMITE_AYER+':00 hrs.';
-      hint.style.color='#5d4037';
-    } else if(graciaOn){
-      var restante=Math.ceil((GRACIA_MINUTOS*60*1000-(Date.now()-ayerSesionIniciada))/60000);
-      hint.textContent='⏳ Estás terminando un registro de ayer iniciado a tiempo — guárdalo pronto (te quedan ~'+restante+' min).';
-      hint.style.color='#c62828';
+    if(dia.esAyer){
+      var graciaOn=ayerGraciaActiva()&&!ayerWindowOpen();
+      if(graciaOn){
+        var restante=Math.ceil((GRACIA_MINUTOS*60*1000-(Date.now()-ayerSesionIniciada))/60000);
+        hint.textContent='⏳ Tienes pendiente cerrar el día de AYER — guárdalo pronto (te quedan ~'+restante+' min).';
+        hint.style.color='#c62828';
+      } else {
+        hint.textContent='⚠️ Tienes pendiente cerrar el día de AYER. Captúralo antes de la '+HORA_LIMITE_AYER+':00 hrs.';
+        hint.style.color='#c62828';
+      }
     } else {
-      hint.textContent='La opción de registrar "ayer" se cierra a la '+HORA_LIMITE_AYER+':00 hrs.';
+      hint.textContent='Registrando el inventario de hoy.';
       hint.style.color='#5d4037';
     }
   }
 }
-// Se llama cuando el gerente cambia la fecha en el selector.
+// El selector ahora tiene una sola opción (deshabilitado), pero mantenemos esta
+// función por compatibilidad: simplemente reconstruye con el día que toca.
 function onRegDateChange(){
-  var sel=document.getElementById('regDateSelect');
-  regSelDate=sel.value;
-  // Si elige "ayer" estando la ventana abierta, se marca el inicio de la sesión
-  // de captura para habilitar el periodo de gracia si la 1 PM lo alcanza capturando.
-  if(regSelDate===yesterdayStr()&&ayerWindowOpen()&&!ayerSesionIniciada){
-    ayerSesionIniciada=Date.now();
-  }
   buildRegTable();
   checkAlreadySaved();
 }
@@ -904,8 +929,17 @@ function startGraciaTimer(){
     // Solo actúa si el gerente está viendo la página de registro.
     var pr=document.getElementById('pageRegister');
     if(!pr||!pr.classList.contains('active')||role!=='gerente'){return;}
-    buildRegDateSelector();
-    checkAlreadySaved();
+    // Si el día que toca capturar cambió (p.ej. pasó la 1 PM y "ayer" se cerró),
+    // reconstruir la tabla. Si no, solo refrescar el aviso del selector.
+    var diaAhora=getDiaACapturar();
+    if(diaAhora.fecha!==regSelDate){
+      regSelDate=diaAhora.fecha;
+      buildRegTable();
+      checkAlreadySaved();
+    } else {
+      buildRegDateSelector();
+      checkAlreadySaved();
+    }
   },60000);
 }
 function stopGraciaTimer(){if(graciaTimer){clearInterval(graciaTimer);graciaTimer=null;}}
@@ -1057,10 +1091,18 @@ function saveDay(){
   var rec={date:today,rows:rows,saldoFinal:sf,consumoReal:cr,fmt:'v2',ts:Date.now()};
   getInvRef(suc).child(dateKey(today)).set(rec).then(function(){
     clearGerente();
-    // Si se guardó "ayer", se cierra la sesión de gracia y se vuelve a "hoy".
-    if(esAyer){ayerSesionIniciada=null;regSelDate=todayStr();buildRegTable();}
     var btn=document.getElementById('saveDayBtn');btn.disabled=true;btn.textContent='✅ Registro '+etiqueta+' ya guardado';
     toast('✅ Registro '+etiqueta+' guardado en tiempo real');
+    if(esAyer){
+      // Al cerrar "ayer", se termina la sesión de gracia y el sistema cambia
+      // automáticamente a "hoy" (getDiaACapturar lo detecta porque ayer ya está guardado).
+      ayerSesionIniciada=null;
+      setTimeout(function(){
+        buildRegTable();
+        checkAlreadySaved();
+        toast('📅 Ahora puedes capturar el inventario de HOY');
+      },1200);
+    }
   }).catch(function(){toast('❌ Error al guardar. Verifica conexión')});
 }
 
