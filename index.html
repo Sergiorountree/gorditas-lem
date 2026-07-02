@@ -559,6 +559,9 @@ function attachConfigListener(){
     var idsAdded=normalizeProducts(CONFIG.products);
     if(idsAdded)db.ref('config').set(CONFIG);
     PRODUCTS=CONFIG.products.filter(function(p){return !p.archived});
+    configLoaded=true;
+    // Con config listo, intentar auto-relleno de las sucursales cuyos datos ya llegaron.
+    Object.keys(invCache).forEach(function(k){tryAutoFill(k)});
     populateSelects();
     // If admin, ensure we're listening to all active sucursales (listenInv/Adm have own guards)
     if(role==='admin'){
@@ -608,6 +611,9 @@ function listenInv(s){
   listeningSuc[s]=true;
   getInvRef(s).on('value',function(snap){
     invCache[s]=snap.val()||{};
+    // Al recibir los datos de la sucursal, intentar el auto-relleno de días faltantes
+    // (tryAutoFill tiene sus propios candados: solo una vez por sesión, config listo, etc.)
+    tryAutoFill(s);
     if(role==='gerente'&&suc===s){
       if(document.getElementById('pageHistory').classList.contains('active'))renderHistory();
       if(document.getElementById('pageEficiencia').classList.contains('active'))renderEficiencia();
@@ -734,6 +740,130 @@ function getDiaACapturar(){
   }
   return {fecha:today, esAyer:false, ayerPendiente:false};
 }
+
+// ── AUTO-RELLENO DE DÍAS FALTANTES ────────────────────────────────────────────
+// Si un gerente no captura un día y su ventana se cierra, el sistema crea ese día
+// automáticamente con consumo CERO y el inventario final igual al del día anterior
+// (el saldo "se mantiene"). El registro queda marcado con autoFill:true y una
+// etiqueta visible, para que el administrador lo corrija con ✏️ Editar.
+var AUTOFILL_MAX_DIAS=31;        // tope de seguridad de días creados por corrida
+var autoFillDone={};             // evita correr más de una vez por sucursal por sesión
+var configLoaded=false;          // true cuando config ya llegó de Firebase
+
+// Convierte 'YYYY-MM-DD' a Date LOCAL (evita el desfase UTC de new Date(string)).
+function parseLocalDate(s){var p=s.split('-');return new Date(parseInt(p[0],10),parseInt(p[1],10)-1,parseInt(p[2],10))}
+function dateToStr(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+
+// Último día cuya ventana de captura YA CERRÓ definitivamente:
+// "ayer" cierra hoy a las HORA_LIMITE_AYER:GRACIA_MINUTOS (1:30 PM por defecto).
+// Antes de esa hora, el último día cerrado es antier.
+function lastClosedDay(){
+  var now=new Date();
+  var cutoff=new Date(now.getFullYear(),now.getMonth(),now.getDate(),HORA_LIMITE_AYER,GRACIA_MINUTOS,0);
+  var d=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  d.setDate(d.getDate()-(now>=cutoff?1:2));
+  return d;
+}
+
+// Crea los días faltantes de una sucursal, desde su primer registro hasta el último
+// día cerrado. Cada día creado copia el inventario del día inmediatamente anterior
+// (real o rellenado): Saldo Final = Saldo Inicial → Consumo Real = 0.
+function autoFillMissingDays(s){
+  var data=getInvData(s);
+  var keys=Object.keys(data).filter(function(k){return data[k]&&data[k].date}).sort();
+  if(!keys.length)return 0; // sin historial: no hay desde dónde partir
+  var limite=lastClosedDay();
+  var d=parseLocalDate(keyToDate(keys[0]));
+  var lastRef=data[keys[0]];
+  var creados=0;
+  d.setDate(d.getDate()+1);
+  while(d<=limite && creados<AUTOFILL_MAX_DIAS){
+    var ds=dateToStr(d);
+    var k=dateKey(ds);
+    if(data[k]){
+      lastRef=data[k]; // día real existente: se vuelve la nueva referencia
+    } else {
+      // Construir el registro de relleno a partir del día anterior (lastRef).
+      var rows={}, sf={}, cr={};
+      PRODUCTS.forEach(function(p){
+        var id=ensureId(p);
+        var sfv=readNum(lastRef.saldoFinal,p);
+        var prevRow=readByProduct(lastRef.rows,p);
+        var locs=(prevRow&&prevRow.locs)?prevRow.locs.slice():[sfv,0,0];
+        var suma=locs.reduce(function(a,b){return a+(parseFloat(b)||0)},0);
+        if(Math.abs(suma-sfv)>0.001)locs=[sfv,0,0]; // garantizar sum(locs)=SF
+        rows[id]={ent:0,locs:locs};
+        sf[id]=sfv;
+        cr[id]=0;
+      });
+      var rec={date:ds,rows:rows,saldoFinal:sf,consumoReal:cr,autoFill:true,fmt:'v2',ts:Date.now()};
+      data[k]=rec;               // actualizar caché local de inmediato
+      lastRef=rec;               // los siguientes días del hueco copian de este
+      getInvRef(s).child(k).set(rec);
+      creados++;
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return creados;
+}
+
+// Dispara el auto-relleno para una sucursal cuando TODAS las precondiciones se
+// cumplen (sesión activa, config cargado, datos de la sucursal recibidos), y solo
+// una vez por sesión. Se llama desde los listeners de config e inventario.
+function tryAutoFill(s){
+  if(!role)return;
+  if(autoFillDone[s])return;
+  if(!configLoaded)return;
+  if(!invCache.hasOwnProperty(s))return;
+  autoFillDone[s]=true; // marcar ANTES de escribir para evitar re-entradas por el listener
+  var n=autoFillMissingDays(s);
+  if(n>0 && role==='admin'){
+    toast('⚠️ Se generaron '+n+' día(s) sin captura en '+s);
+    if(document.getElementById('pageAdmin').classList.contains('active'))renderAdmin();
+  }
+}
+
+// Devuelve la fecha (YYYY-MM-DD) del siguiente registro existente después de dateStr,
+// o null si no hay. Se usa para el recálculo en cascada al editar un día.
+function getNextRecDate(s,dateStr){
+  var data=getInvData(s);
+  var k0=dateKey(dateStr);
+  var keys=Object.keys(data).filter(function(k){return data[k]&&data[k].date&&k>k0}).sort();
+  return keys.length?keyToDate(keys[0]):null;
+}
+
+// Recalcula los campos derivados (Saldo Final, Consumo Real, Diferencia, Eficiencia)
+// de un registro existente, respetando sus locs/ent capturados. Se usa cuando el día
+// ANTERIOR fue editado y por tanto cambió el Saldo Inicial de este día.
+function recalcDerived(s,dateStr){
+  var rec=getInvData(s)[dateKey(dateStr)];
+  if(!rec)return Promise.resolve(false);
+  var admDay=getAdmDay(s,dateStr);
+  var prevSF=getPrevSF(s,dateStr);
+  var hasAdmSI=Object.keys(admDay.si).some(function(k){return admDay.si[k]>0});
+  var newRows={},newSF={},newCR={},newDif={};
+  PRODUCTS.forEach(function(p){
+    var id=ensureId(p);
+    var prevRow=readByProduct(rec.rows,p);
+    var locs=(prevRow&&prevRow.locs)?prevRow.locs:[0,0,0];
+    var ent=admDay.ent[id]?admDay.ent[id]:(prevRow?prevRow.ent||0:0);
+    var sfv=locs.reduce(function(a,b){return a+(parseFloat(b)||0)},0);
+    var sv=hasAdmSI?(admDay.si[id]||0):(prevSF?prevSF[id]||0:0);
+    newRows[id]={ent:ent,locs:locs};
+    newSF[id]=sfv;
+    newCR[id]=(sv+ent)-sfv;
+    var dz=admDay.dritz[id]||0;
+    var dg=dz?newCR[id]-dz:null;
+    newDif[id]={difG:dg,dtg:dg!==null?Math.round(dg/p.gpg):null};
+  });
+  rec.rows=newRows;rec.saldoFinal=newSF;rec.consumoReal=newCR;rec.diferencia=newDif;rec.fmt='v2';
+  var da=PRODUCTS.map(function(p){return admDay.dritz[ensureId(p)]||0});
+  var ca=PRODUCTS.map(function(p){return newCR[ensureId(p)]});
+  rec.eficiencia=calcEff(da,ca);
+  getInvData(s)[dateKey(dateStr)]=rec;
+  return getInvRef(s).child(dateKey(dateStr)).set(rec).then(function(){return true});
+}
+
 function pad(n){return String(n).padStart(2,'0')}
 function fmtDate(s){var p=s.split('-');return p[2]+'/'+p[1]+'/'+p[0]}
 function fmt(n){if(n===null||n===undefined||n==='')return '';var v=parseFloat(n);if(isNaN(v))return '';return v%1===0?v:parseFloat(v.toFixed(3))}
@@ -811,6 +941,7 @@ function logout(){
   auth.signOut().then(function(){
     role=null;suc=null;admSuc=null;admDate=null;
     ayerSesionIniciada=null;
+    autoFillDone={};
     stopGraciaTimer();
     detachAllListeners();
     document.getElementById('nav').style.display='none';
@@ -1266,9 +1397,10 @@ function buildHistEntry(rec,sucursal){
   var totSF=fmt(PRODUCTS.reduce(function(a,p){return a+readNum(rec.saldoFinal,p)},0));
   var effCats=rec.eficiencia||calcEff(PRODUCTS.map(function(p){return admDay.dritz[ensureId(p)]||0}),PRODUCTS.map(function(p){return readNum(rec.consumoReal,p)}));
   var editBtn=role==='admin'?'<button class="btn btn-adm" style="font-size:.72rem;padding:4px 9px" data-suc="'+sucursal+'" data-date="'+rec.date+'" onclick="event.stopPropagation();openEditRec(this.dataset.suc,this.dataset.date)">✏️ Editar</button>':'';
+  var autoBadge=rec.autoFill?'<span style="background:#ffebee;color:#c62828;border:1px solid #ef9a9a;font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:10px">⚠️ Generado sin captura del gerente</span>':'';
   return '<div class="hist-entry"><div class="hist-hdr" onclick="toggleEntry(this)">'+
     '<h3>📅 '+fmtDate(rec.date)+'</h3>'+
-    '<div style="display:flex;align-items:center;gap:8px">'+editBtn+'<span style="font-size:.78rem;color:#5a3800;font-weight:700">SF: '+totSF+'</span></div></div>'+
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+autoBadge+editBtn+'<span style="font-size:.78rem;color:#5a3800;font-weight:700">SF: '+totSF+'</span></div></div>'+
     '<div style="display:none"><div class="tbl-wrap" style="border-radius:0;border:none"><table style="min-width:600px">'+
     '<thead><tr><th>Producto</th><th>Unidad</th><th>S.Inicial</th><th>Entrada</th>'+
     LOC_LABELS.map(function(l){return '<th>'+l+'</th>'}).join('')+
@@ -1326,6 +1458,30 @@ function renderAdmin(){
   var fm=document.getElementById('admFilterMonth').value;
   var fs=document.getElementById('admFilterSuc').value;
   var subs=(CONFIG.sucursales||[]).filter(function(s){return s&&s.name&&!s.archived&&(fs?s.name===fs:true)});
+  // Alertas: días generados automáticamente sin captura, pendientes de corregir.
+  var alerts=[];
+  subs.forEach(function(s){
+    Object.values(getInvData(s.name)).forEach(function(r){
+      if(r&&r.date&&r.autoFill)alerts.push({suc:s.name,date:r.date});
+    });
+  });
+  alerts.sort(function(a,b){return b.date.localeCompare(a.date)||a.suc.localeCompare(b.suc)});
+  var alertHTML='';
+  if(alerts.length){
+    var items=alerts.map(function(a){
+      var msg='Hola, no se registró el inventario de '+a.suc+' del '+fmtDate(a.date)+'. El sistema lo generó en ceros. Por favor pasar los datos reales a administración para corregirlo.';
+      var wa='https://wa.me/?text='+encodeURIComponent(msg);
+      return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid #ffcdd2">'+
+        '<span style="font-size:.85rem;font-weight:600;color:#b71c1c">🏪 '+a.suc+' — 📅 '+fmtDate(a.date)+'</span>'+
+        '<button class="btn btn-adm" style="font-size:.72rem;padding:4px 9px" data-suc="'+a.suc+'" data-date="'+a.date+'" onclick="openEditRec(this.dataset.suc,this.dataset.date)">✏️ Corregir</button>'+
+        '<a href="'+wa+'" target="_blank" rel="noopener" class="btn btn-sec" style="font-size:.72rem;padding:4px 9px;text-decoration:none">💬 WhatsApp</a>'+
+        '</div>';
+    }).join('');
+    alertHTML='<div style="background:#ffebee;border-left:4px solid #c62828;border-radius:8px;padding:12px 14px;margin-bottom:14px">'+
+      '<div style="font-weight:700;color:#b71c1c;font-size:.9rem;margin-bottom:4px">⚠️ Días generados sin captura del gerente ('+alerts.length+')</div>'+
+      '<div style="font-size:.76rem;color:#7f4c4c;margin-bottom:6px">Estos días se crearon automáticamente con consumo en cero porque el gerente no capturó a tiempo. Corrígelos con los datos reales.</div>'+
+      items+'</div>';
+  }
   var cards=subs.map(function(s){
     var data=getInvData(s.name);
     var recs=Object.values(data).filter(function(r){return r&&r.date});
@@ -1344,7 +1500,7 @@ function renderAdmin(){
     var key=fbKey(s.name);
     return '<div id="det_'+key+'" style="display:none;margin-bottom:8px">'+(recs.length?recs.map(function(r){return buildHistEntry(r,s.name)}).join(''):'<div class="empty-state">Sin registros</div>')+'</div>';
   }).join('');
-  document.getElementById('adminContent').innerHTML='<div class="suc-grid">'+cards+'</div>'+details;
+  document.getElementById('adminContent').innerHTML=alertHTML+'<div class="suc-grid">'+cards+'</div>'+details;
 }
 function toggleSD(id){var e=document.getElementById(id);if(e)e.style.display=e.style.display==='none'?'block':'none'}
 
@@ -1427,7 +1583,8 @@ function buildEditTable(){
   var admDay=getAdmDay(editSuc,editDate);
   var prevSF=getPrevSF(editSuc,editDate);
   document.getElementById('editSucBadge').textContent='🏪 '+editSuc;
-  document.getElementById('editDate').textContent=fmtDate(editDate);
+  document.getElementById('editDate').textContent=fmtDate(editDate)+(rec.autoFill?' — ⚠️ Generado sin captura':'');
+  if(rec.autoFill)toast('⚠️ Este día fue generado automáticamente sin captura del gerente. Captura ahora los datos reales.');
   var tbody=document.getElementById('editBody');tbody.innerHTML='';
   var catLabel={guiso:'🥩 Guisos',postre:'🍞 Postres',bebida:'🥤 Bebidas'};
   var byCat={guiso:[],postre:[],bebida:[]};
@@ -1534,8 +1691,26 @@ function saveEditRec(){
     getInvRef(editSuc).child(dateKey(editDate)).set(newRec),
     getAdmRef(editSuc).child(dateKey(editDate)).set(admRec)
   ]).then(function(){
-    toast('✅ Registro corregido para '+editSuc);
-    cancelEditRec();
+    // Actualizar caché local de inmediato (el listener también lo hará, pero así
+    // garantizamos que el recálculo del día siguiente vea el saldo nuevo).
+    getInvData(editSuc)[dateKey(editDate)]=newRec;
+    var admD=getAdmData(editSuc);admD[dateKey(editDate)]=admRec;
+    // Cascada: si existe un registro posterior, su Saldo Inicial depende del
+    // Saldo Final recién editado → recalcular sus derivados automáticamente.
+    var nextDate=getNextRecDate(editSuc,editDate);
+    var sucGuardada=editSuc;
+    if(nextDate){
+      recalcDerived(sucGuardada,nextDate).then(function(){
+        toast('✅ Registro corregido. Se recalculó también el '+fmtDate(nextDate));
+        cancelEditRec();
+      }).catch(function(){
+        toast('✅ Registro corregido, pero falló el recálculo del '+fmtDate(nextDate)+'. Ábrelo con ✏️ Editar y guárdalo para recalcular.');
+        cancelEditRec();
+      });
+    } else {
+      toast('✅ Registro corregido para '+sucGuardada);
+      cancelEditRec();
+    }
   }).catch(function(){
     toast('❌ Error al guardar. Verifica conexión');
   });
