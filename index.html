@@ -1278,6 +1278,23 @@ function saveAdmData(){
 }
 
 // ── PLANTILLAS ────────────────────────────────────────────────────────────────
+// Alias de nombres usados en los reportes externos (venta por producto-inventario)
+// → nombre del producto en el sistema. Agregar aquí futuros cambios de nombre.
+var PRODUCT_ALIASES={
+  "Chicharron en Salsa Verde":"Chicharron en SV"
+};
+// Normaliza un nombre de producto para comparar: sin acentos, minúsculas, espacios
+// colapsados, y abreviaturas de salsa unificadas ("salsa verde"→"sv", "salsa roja"→"sr").
+function normProdName(n){
+  var s=String(n||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  s=s.replace(/\bsalsa verde\b/g,'sv').replace(/\bsalsa roja\b/g,'sr');
+  return s;
+}
+(function(){ // aplicar alias normalizados (clave normalizada del alias → nombre normalizado del sistema)
+  var orig=normProdName;var a={};
+  Object.keys(PRODUCT_ALIASES).forEach(function(k){a[orig(k)]=orig(PRODUCT_ALIASES[k])});
+  normProdName=function(n){var s=orig(n);return a[s]||s};
+})();
 function downloadPlantilla(tipo){
   var titles={si:'Saldo Inicial',ent:'Entrada',dritz:'Consumo Dritzline'};
   var rows=[['Producto','Valor']];
@@ -1295,10 +1312,12 @@ function importExcel(input,tipo){
     try{
       var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
-      var map={};rows.slice(1).forEach(function(row){var n=String(row[0]||'').trim();var v=parseFloat(row[1])||0;if(n)map[n]=v});
+      // Se indexa por nombre NORMALIZADO para tolerar cambios de nombre en el reporte
+      // (acentos, mayúsculas, espacios, "Salsa Verde"↔"SV", alias explícitos).
+      var map={};rows.slice(1).forEach(function(row){var n=String(row[0]||'').trim();var v=parseFloat(row[1])||0;if(n)map[normProdName(n)]=v});
       var matched=0;
       PRODUCTS.forEach(function(p,i){
-        var val=map[p.name];
+        var val=map[normProdName(p.name)];
         if(val!==undefined){var id=tipo==='si'?'a_si_'+i:tipo==='ent'?'a_ent_'+i:'a_dritz_'+i;var el=document.getElementById(id);if(el){el.value=val;matched++}}
       });
       toast('✅ Importados '+matched+' productos');
